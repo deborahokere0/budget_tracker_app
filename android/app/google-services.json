@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "339793866787",
+    "firebase_url": "https://dee-s-budget-app-default-rtdb.firebaseio.com",
+    "project_id": "dee-s-budget-app",
+    "storage_bucket": "dee-s-budget-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:339793866787:android:f20d35fcd26c25e9c58196",
+        "android_client_info": {
+          "package_name": "com.io.budget_tracker_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAdGvJnHRmKFK2RYTjgJ_ECOFPKSFCaiH8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
