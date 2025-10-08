@@ -863,7 +863,7 @@ static String format(double amount) {
 This is an academic project. Contributions are not currently accepted, but feedback and suggestions are welcome.
 
 ### Contact
-- **Email:** [Your Email]
+- **Email:** deborahokere0@gmail.com
 - **Institution:** National Open University of Nigeria
 - **Supervisor:** [Supervisor Name]
 
@@ -915,5 +915,5 @@ This project fulfills the requirements for the final year project in Computer Sc
 ---
 
 **Version:** 1.0.0  
-**Last Updated:** October 2024  
+**Last Updated:** October 2025  
 **Status:** Development Complete, Testing In Progress
