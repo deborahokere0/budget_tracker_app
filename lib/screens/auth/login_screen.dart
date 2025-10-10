@@ -1,4 +1,3 @@
-// lib/screens/auth/login_screen.dart
 import 'package:flutter/material.dart';
 import '../../services/firebase_service.dart';
 import '../../theme/app_theme.dart';

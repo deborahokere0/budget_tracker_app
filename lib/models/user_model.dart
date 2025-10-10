@@ -1,14 +1,13 @@
-// lib/models/user_model.dart
 class UserModel {
   final String uid;
   final String email;
   final String fullName;
   final String username;
-  final String incomeType; // 'fixed', 'variable', or 'hybrid'
+  final String incomeType; // 'fixed', 'variable', 'hybrid'
   final DateTime createdAt;
+  final String? profileImageUrl;
   final double? monthlyIncome;
   final double? targetSavings;
-  final String? profileImageUrl;
 
   UserModel({
     required this.uid,
@@ -17,9 +16,9 @@ class UserModel {
     required this.username,
     required this.incomeType,
     required this.createdAt,
+    this.profileImageUrl,
     this.monthlyIncome,
     this.targetSavings,
-    this.profileImageUrl,
   });
 
   Map<String, dynamic> toMap() {
@@ -30,9 +29,9 @@ class UserModel {
       'username': username,
       'incomeType': incomeType,
       'createdAt': createdAt.toIso8601String(),
+      'profileImageUrl': profileImageUrl,
       'monthlyIncome': monthlyIncome,
       'targetSavings': targetSavings,
-      'profileImageUrl': profileImageUrl,
     };
   }
 
@@ -43,10 +42,36 @@ class UserModel {
       fullName: map['fullName'] ?? '',
       username: map['username'] ?? '',
       incomeType: map['incomeType'] ?? 'fixed',
-      createdAt: DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
+      createdAt: map['createdAt'] != null
+          ? DateTime.parse(map['createdAt'])
+          : DateTime.now(),
+      profileImageUrl: map['profileImageUrl'],
       monthlyIncome: map['monthlyIncome']?.toDouble(),
       targetSavings: map['targetSavings']?.toDouble(),
-      profileImageUrl: map['profileImageUrl'],
+    );
+  }
+
+  UserModel copyWith({
+    String? uid,
+    String? email,
+    String? fullName,
+    String? username,
+    String? incomeType,
+    DateTime? createdAt,
+    String? profileImageUrl,
+    double? monthlyIncome,
+    double? targetSavings,
+  }) {
+    return UserModel(
+      uid: uid ?? this.uid,
+      email: email ?? this.email,
+      fullName: fullName ?? this.fullName,
+      username: username ?? this.username,
+      incomeType: incomeType ?? this.incomeType,
+      createdAt: createdAt ?? this.createdAt,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      monthlyIncome: monthlyIncome ?? this.monthlyIncome,
+      targetSavings: targetSavings ?? this.targetSavings,
     );
   }
 }

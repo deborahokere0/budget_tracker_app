@@ -19,22 +19,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   String _selectedIncomeType = 'fixed';
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   final List<Map<String, String>> _incomeTypes = [
     {
       'value': 'fixed',
       'title': 'Fixed Earner',
-      'subtitle': 'Regular salary or consistent income'
+      'subtitle': 'Regular salary or consistent income',
     },
     {
       'value': 'variable',
       'title': 'Variable Earner',
-      'subtitle': 'Freelance, commission, or irregular income'
+      'subtitle': 'Freelance, commission, or irregular income',
     },
     {
       'value': 'hybrid',
       'title': 'Hybrid Earner',
-      'subtitle': 'Mix of fixed salary and variable income'
+      'subtitle': 'Mix of fixed salary and variable income',
     },
   ];
 
@@ -89,18 +90,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Complete Your Profile',
-                  style: TextStyle(
-                    fontSize: 20,
-                    color: Colors.grey[800],
-                  ),
+                  style: TextStyle(fontSize: 20, color: Colors.grey[800]),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Help us personalize your budget experience',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
                 const SizedBox(height: 32),
                 TextFormField(
@@ -122,6 +117,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Username',
                     hintText: 'Choose a username',
+                    prefixIcon: Icon(Icons.person),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -137,6 +133,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Email Address',
                     hintText: 'Enter your email',
+                    prefixIcon: Icon(Icons.email),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -151,10 +148,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
+                  obscureText: _obscurePassword,
+                  decoration: InputDecoration(
                     labelText: 'Password',
                     hintText: 'Create a password',
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                      ),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
+                    ),
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
@@ -178,41 +185,40 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'This helps us customize budget recommendations for you',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
                 const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey[300]!),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    children: _incomeTypes.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final map = entry.value;
-                      return Column(
-                        children: [
-                          RadioListTile<String>(
-                            title: Text(map['title']!),
-                            subtitle: Text(map['subtitle']!),
-                            value: map['value']!,
-                            groupValue: _selectedIncomeType,
-                            onChanged: (value) {
-                              if (value != null) {
-                                setState(() {
-                                  _selectedIncomeType = value;
-                                });
-                              }
-                            },
-                          ),
-                          if (index < _incomeTypes.length - 1)
-                            Divider(height: 1, color: Colors.grey[300]),
-                        ],
-                      );
-                    }).toList(),
+                RadioGroup<String>(
+                  groupValue: _selectedIncomeType,
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _selectedIncomeType = value;
+                      });
+                    }
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: _incomeTypes.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final map = entry.value;
+                        return Column(
+                          children: [
+                            RadioListTile<String>(
+                              title: Text(map['title']!),
+                              subtitle: Text(map['subtitle']!),
+                              value: map['value']!,
+                            ),
+                            if (index < _incomeTypes.length - 1)
+                              Divider(height: 1, color: Colors.grey[300]),
+                          ],
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 32),

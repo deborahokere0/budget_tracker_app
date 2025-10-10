@@ -107,6 +107,10 @@ class FirebaseService {
   }
 
   Stream<List<TransactionModel>> getTransactions() {
+    if (currentUserId == null) {
+      return Stream.value([]);
+    }
+
     return _firestore
         .collection('transactions')
         .doc(currentUserId)
@@ -137,6 +141,10 @@ class FirebaseService {
   }
 
   Stream<List<BudgetModel>> getBudgets() {
+    if (currentUserId == null) {
+      return Stream.value([]);
+    }
+
     return _firestore
         .collection('budgets')
         .doc(currentUserId)
@@ -175,6 +183,10 @@ class FirebaseService {
   }
 
   Stream<List<RuleModel>> getRules() {
+    if (currentUserId == null) {
+      return Stream.value([]);
+    }
+
     return _firestore
         .collection('rules')
         .doc(currentUserId)
@@ -270,6 +282,12 @@ class FirebaseService {
 
         if (conditionsMet) {
           await _executeRuleActions(rule, transaction);
+          await _firestore
+              .collection('rules')
+              .doc(currentUserId)
+              .collection('userRules')
+              .doc(rule.id)
+              .update({'lastTriggered': DateTime.now().toIso8601String()});
         }
       }
     } catch (e) {
@@ -298,7 +316,7 @@ class FirebaseService {
 
   Future<void> _executeRuleActions(RuleModel rule, TransactionModel transaction) async {
     if (rule.type == 'allocation' && rule.actions['allocateToSavings'] != null) {
-      double savingsPercent = rule.actions['allocateToSavings'];
+      double savingsPercent = rule.actions['allocateToSavings'].toDouble();
       double savingsAmount = transaction.amount * (savingsPercent / 100);
 
       TransactionModel savings = TransactionModel(
@@ -318,10 +336,24 @@ class FirebaseService {
   // Get dashboard statistics
   Future<Map<String, dynamic>> getDashboardStats() async {
     try {
+      if (currentUserId == null) {
+        return {
+          'totalIncome': 0.0,
+          'totalExpenses': 0.0,
+          'netAmount': 0.0,
+          'weeklyIncome': 0.0,
+          'weeklyExpenses': 0.0,
+          'salaryIncome': 0.0,
+          'gigIncome': 0.0,
+        };
+      }
+
       double totalIncome = 0;
       double totalExpenses = 0;
       double weeklyIncome = 0;
       double weeklyExpenses = 0;
+      double salaryIncome = 0;
+      double gigIncome = 0;
 
       DateTime now = DateTime.now();
       DateTime weekStart = now.subtract(Duration(days: now.weekday - 1));
@@ -338,6 +370,15 @@ class FirebaseService {
 
         if (transaction.type == 'income') {
           totalIncome += transaction.amount;
+
+          // Categorize by source for hybrid earners
+          if (transaction.source?.toLowerCase() == 'salary' ||
+              transaction.category.toLowerCase() == 'salary') {
+            salaryIncome += transaction.amount;
+          } else {
+            gigIncome += transaction.amount;
+          }
+
           if (transaction.date.isAfter(weekStart)) {
             weeklyIncome += transaction.amount;
           }
@@ -355,10 +396,103 @@ class FirebaseService {
         'netAmount': totalIncome - totalExpenses,
         'weeklyIncome': weeklyIncome,
         'weeklyExpenses': weeklyExpenses,
+        'salaryIncome': salaryIncome,
+        'gigIncome': gigIncome,
       };
     } catch (e) {
       print('Error getting dashboard stats: $e');
-      return {};
+      return {
+        'totalIncome': 0.0,
+        'totalExpenses': 0.0,
+        'netAmount': 0.0,
+        'weeklyIncome': 0.0,
+        'weeklyExpenses': 0.0,
+        'salaryIncome': 0.0,
+        'gigIncome': 0.0,
+      };
+    }
+  }
+
+  // User Profile
+  Future<void> updateUserProfile(UserModel user) async {
+    try {
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .update(user.toMap());
+    } catch (e) {
+      print('Error updating user profile: $e');
+      rethrow;
+    }
+  }
+
+  // Transactions
+  Future<void> deleteTransaction(String transactionId) async {
+    try {
+      final doc = await _firestore
+          .collection('transactions')
+          .doc(currentUserId)
+          .collection('userTransactions')
+          .doc(transactionId)
+          .get();
+
+      if (doc.exists) {
+        final transaction = TransactionModel.fromMap(doc.data()!);
+
+        if (transaction.type == 'expense') {
+          await _updateBudgetSpent(transaction.category, -transaction.amount);
+        }
+
+        await doc.reference.delete();
+      }
+    } catch (e) {
+      print('Error deleting transaction: $e');
+      rethrow;
+    }
+  }
+
+  // Delete Budget
+  Future<void> deleteBudget(String budgetId) async {
+    try {
+      await _firestore
+          .collection('budgets')
+          .doc(currentUserId)
+          .collection('userBudgets')
+          .doc(budgetId)
+          .delete();
+    } catch (e) {
+      print('Error deleting budget: $e');
+      rethrow;
+    }
+  }
+
+  // Update Rules
+  Future<void> updateRule(RuleModel rule) async {
+    try {
+      await _firestore
+          .collection('rules')
+          .doc(currentUserId)
+          .collection('userRules')
+          .doc(rule.id)
+          .update(rule.toMap());
+    } catch (e) {
+      print('Error updating rule: $e');
+      rethrow;
+    }
+  }
+
+  // Delete Rule
+  Future<void> deleteRule(String ruleId) async {
+    try {
+      await _firestore
+          .collection('rules')
+          .doc(currentUserId)
+          .collection('userRules')
+          .doc(ruleId)
+          .delete();
+    } catch (e) {
+      print('Error deleting rule: $e');
+      rethrow;
     }
   }
 }

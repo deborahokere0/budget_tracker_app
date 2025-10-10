@@ -8,6 +8,7 @@ import 'widgets/hybrid_earner_dashboard.dart';
 import 'transactions/add_transaction_screen.dart';
 import 'rules/rules_screen.dart';
 import 'transactions/transactions_list_screen.dart';
+import 'profile/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,31 +20,142 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   UserModel? _currentUser;
-  int _selectedIndex = 0;
   Map<String, dynamic> _dashboardStats = {};
+  bool _isLoading = true;
+  String? _errorMessage;
+  int _selectedIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadUserProfile();
-    _loadDashboardStats();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await _loadUserProfile();
+      await _loadDashboardStats();
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to load data: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _loadUserProfile() async {
     if (_firebaseService.currentUserId != null) {
       final user = await _firebaseService.getUserProfile(_firebaseService.currentUserId!);
-      setState(() => _currentUser = user);
+      if (mounted) {
+        setState(() => _currentUser = user);
+      }
+    } else {
+      throw Exception('No authenticated user found');
     }
   }
 
   Future<void> _loadDashboardStats() async {
     final stats = await _firebaseService.getDashboardStats();
-    setState(() => _dashboardStats = stats);
+    if (mounted) {
+      setState(() => _dashboardStats = stats);
+    }
+  }
+
+  Future<void> _handleSignOut() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppTheme.red),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await _firebaseService.signOut();
+      if (mounted) {
+        // Navigate back to auth screen - adjust route as needed
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    }
+  }
+
+  void _navigateToProfile() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ProfileScreen(),
+      ),
+    );
+    // Reload user data after returning from profile
+    _loadUserProfile();
   }
 
   Widget _buildDashboard() {
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Loading your dashboard...'),
+          ],
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+            const SizedBox(height: 16),
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.red),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _initializeData,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
     if (_currentUser == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.person_off, size: 64),
+            SizedBox(height: 16),
+            Text('Unable to load user profile'),
+          ],
+        ),
+      );
     }
 
     switch (_currentUser!.incomeType) {
@@ -84,10 +196,53 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.primaryBlue,
-      body: pages[_selectedIndex],
+      appBar: _selectedIndex == 0
+          ? AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          // Profile Icon
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: _navigateToProfile,
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.white,
+                child: _currentUser?.profileImageUrl != null
+                    ? ClipOval(
+                  child: Image.network(
+                    _currentUser!.profileImageUrl!,
+                    width: 36,
+                    height: 36,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return _buildProfileInitial();
+                    },
+                  ),
+                )
+                    : _buildProfileInitial(),
+              ),
+            ),
+          ),
+          // Sign Out Icon
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: _handleSignOut,
+            tooltip: 'Sign Out',
+          ),
+        ],
+      )
+          : null,
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: pages,
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) => setState(() => _selectedIndex = index),
+        selectedItemColor: AppTheme.primaryBlue,
+        unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home),
@@ -103,10 +258,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: _selectedIndex == 0
+          ? FloatingActionButton(
         backgroundColor: AppTheme.green,
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (_) => AddTransactionScreen(
@@ -116,6 +272,18 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
         child: const Icon(Icons.add, color: Colors.white),
+      )
+          : null,
+    );
+  }
+
+  Widget _buildProfileInitial() {
+    return Text(
+      _currentUser?.fullName.substring(0, 1).toUpperCase() ?? 'U',
+      style: const TextStyle(
+        fontSize: 18,
+        color: AppTheme.primaryBlue,
+        fontWeight: FontWeight.bold,
       ),
     );
   }
