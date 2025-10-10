@@ -8,12 +8,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:budget_tracker_app/main1.dart';
+import 'package:budget_tracker_app/main.dart';
 
 void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const BudgetTrackerApp());
 
     // Verify that our counter starts at 0.
     expect(find.text('0'), findsOneWidget);
