@@ -162,6 +162,16 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
               ),
               child: Text(rule.actions.entries.map((e) => '${e.key}: ${e.value}').join('\n')),
             ),
+            ElevatedButton.icon(onPressed: () {
+              Navigator.pop(context);
+              _deleteRule(rule);
+            },
+            icon: const Icon(Icons.delete),
+            label: const Text("Delete Rule"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.red,
+              minimumSize: const Size(double.infinity, 50),)
+            ),
           ],
         ),
       ),
@@ -382,7 +392,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                   ),
                 ),
                 const SizedBox(height: 16),
-                ...rules.map((rule) => _buildRuleItem(rule)).toList(),
+                ...rules.map((rule) => _buildRuleItem(rule)),
               ] else
                 Center(
                   child: Column(
@@ -547,7 +557,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                   ),
                 ),
                 const SizedBox(height: 16),
-                ...rules.map((rule) => _buildRuleItem(rule)).toList(),
+                ...rules.map((rule) => _buildRuleItem(rule)),
               ],
             ],
           ),
@@ -619,7 +629,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                   ),
                 ),
                 const SizedBox(height: 16),
-                ...rules.map((rule) => _buildRuleItem(rule)).toList(),
+                ...rules.map((rule) => _buildRuleItem(rule)),
               ] else
                 Center(
                   child: Column(
@@ -707,7 +717,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                   ),
                 ),
                 const SizedBox(height: 16),
-                ...rules.map((rule) => _buildRuleItem(rule)).toList(),
+                ...rules.map((rule) => _buildRuleItem(rule)),
               ],
             ],
           ),
@@ -726,7 +736,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
         border: Border.all(color: Colors.grey[300]!),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 3,
             offset: const Offset(0, 1),
