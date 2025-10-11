@@ -22,7 +22,6 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
   final FirebaseService _firebaseService = FirebaseService();
 
   String _selectedCategory = 'Food';
-  String _selectedCondition = 'income';
   double _allocationPercent = 10.0;
   int _priority = 1;
   bool _isActive = true;
@@ -32,6 +31,13 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
     'Food', 'Transport', 'Data', 'Entertainment',
     'Utilities', 'Savings', 'Emergency', 'Other'
   ];
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _amountController.dispose();
+    super.dispose();
+  }
 
   Future<void> _saveRule() async {
     if (_formKey.currentState!.validate()) {
@@ -74,16 +80,32 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         createdAt: DateTime.now(),
       );
 
-      await _firebaseService.addRule(rule);
-      setState(() => _isLoading = false);
+      try {
+        await _firebaseService.addRule(rule);
 
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Rule created successfully'),
-          backgroundColor: AppTheme.green,
-        ),
-      );
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Rule created successfully'),
+              backgroundColor: AppTheme.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error creating rule: $e'),
+              backgroundColor: AppTheme.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
     }
   }
 
@@ -95,6 +117,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         title: Text('Add ${_getRuleTypeTitle()} Rule'),
         backgroundColor: AppTheme.primaryBlue,
         elevation: 0,
+        foregroundColor: Colors.white,
       ),
       body: Form(
         key: _formKey,
@@ -106,7 +129,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
               // Rule Name
               TextFormField(
                 controller: _nameController,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   labelText: 'Rule Name',
                   hintText: 'e.g., Save 20% of income',
                   prefixIcon: Icon(Icons.label),
@@ -132,7 +155,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
                 children: [
                   Text(
                     'Priority: $_priority',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                     ),
@@ -155,8 +178,8 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
 
               // Active Switch
               SwitchListTile(
-                title: Text('Active'),
-                subtitle: Text('Rule will be applied automatically'),
+                title: const Text('Active'),
+                subtitle: const Text('Rule will be applied automatically'),
                 value: _isActive,
                 activeThumbColor: AppTheme.green,
                 onChanged: (value) {
@@ -174,8 +197,8 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
                   minimumSize: const Size(double.infinity, 50),
                 ),
                 child: _isLoading
-                    ? CircularProgressIndicator(color: Colors.white)
-                    : Text(
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text(
                   'Save Rule',
                   style: TextStyle(fontSize: 16),
                 ),
@@ -195,7 +218,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
             TextFormField(
               controller: _amountController,
               keyboardType: TextInputType.number,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Minimum Income Amount',
                 prefixText: '₦ ',
                 hintText: 'Apply when income is at least',
@@ -213,7 +236,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
               children: [
                 Text(
                   'Allocation Percentage: ${_allocationPercent.toStringAsFixed(0)}%',
-                  style: TextStyle(fontSize: 16),
+                  style: const TextStyle(fontSize: 16),
                 ),
                 Slider(
                   value: _allocationPercent,
@@ -236,7 +259,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
           children: [
             DropdownButtonFormField<String>(
               initialValue: _selectedCategory,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Category',
                 prefixIcon: Icon(Icons.category),
               ),
@@ -256,7 +279,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
               children: [
                 Text(
                   'Save Percentage: ${_allocationPercent.toStringAsFixed(0)}%',
-                  style: TextStyle(fontSize: 16),
+                  style: const TextStyle(fontSize: 16),
                 ),
                 Slider(
                   value: _allocationPercent,
@@ -279,7 +302,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
           children: [
             DropdownButtonFormField<String>(
               initialValue: _selectedCategory,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Category',
                 prefixIcon: Icon(Icons.category),
               ),
@@ -297,7 +320,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
             TextFormField(
               controller: _amountController,
               keyboardType: TextInputType.number,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: 'Alert Threshold',
                 prefixText: '₦ ',
                 hintText: 'Alert when spending exceeds',
@@ -315,9 +338,9 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
       case 'boost':
         return Center(
           child: Container(
-            padding: EdgeInsets.all(20),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppTheme.orange.withOpacity(0.1),
+              color: AppTheme.orange.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -328,7 +351,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
                   color: AppTheme.orange,
                 ),
                 const SizedBox(height: 16),
-                Text(
+                const Text(
                   'Boost rules coming soon!',
                   style: TextStyle(
                     fontSize: 16,
@@ -347,7 +370,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         );
 
       default:
-        return Container();
+        return const SizedBox.shrink();
     }
   }
 
@@ -364,12 +387,5 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
       default:
         return '';
     }
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _amountController.dispose();
-    super.dispose();
   }
 }

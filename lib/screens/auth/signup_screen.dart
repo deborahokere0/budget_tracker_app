@@ -43,22 +43,43 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
 
-      final user = await _firebaseService.signUp(
-        _emailController.text.trim(),
-        _passwordController.text,
-        _fullNameController.text.trim(),
-        _usernameController.text.trim(),
-        _selectedIncomeType,
-      );
-
-      setState(() => _isLoading = false);
-
-      if (user != null) {
-        Navigator.pop(context);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sign up failed. Please try again.')),
+      try {
+        final user = await _firebaseService.signUp(
+          _emailController.text.trim(),
+          _passwordController.text.trim(),
+          _fullNameController.text.trim(),
+          _usernameController.text.trim(),
+          _selectedIncomeType,
         );
+
+        if (user != null && mounted) {
+          // Success - navigate to home
+          Navigator.pushReplacementNamed(context, '/home');
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account created successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          // Extract the error message
+          String errorMessage = e.toString().replaceAll('Exception: ', '');
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
     }
   }

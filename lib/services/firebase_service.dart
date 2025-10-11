@@ -9,11 +9,11 @@ class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Get current user
+// Get current user
   User? get currentUser => _auth.currentUser;
   String? get currentUserId => _auth.currentUser?.uid;
 
-  // Authentication
+// Authentication
   Future<User?> signUp(String email, String password, String fullName,
       String username, String incomeType) async {
     try {
@@ -42,9 +42,30 @@ class FirebaseService {
       }
 
       return user;
+    } on FirebaseAuthException catch (e) {
+      print('Firebase Auth Error: ${e.code} - ${e.message}');
+      // Re-throw with user-friendly message
+      switch (e.code) {
+        case 'email-already-in-use':
+          throw Exception('This email is already registered');
+        case 'weak-password':
+          throw Exception('Password is too weak (minimum 6 characters)');
+        case 'invalid-email':
+          throw Exception('Invalid email address');
+        case 'operation-not-allowed':
+          throw Exception('Email/password accounts are not enabled');
+        default:
+          throw Exception('Sign up failed: ${e.message}');
+      }
+    } on FirebaseException catch (e) {
+      print('Firebase Error: ${e.code} - ${e.message}');
+      if (e.code == 'permission-denied') {
+        throw Exception('Permission denied. Please check your account settings.');
+      }
+      throw Exception('Database error: ${e.message}');
     } catch (e) {
       print('Error signing up: $e');
-      return null;
+      throw Exception('An unexpected error occurred during sign up');
     }
   }
 
@@ -55,9 +76,31 @@ class FirebaseService {
         password: password,
       );
       return result.user;
+    } on FirebaseAuthException catch (e) {
+      print('Firebase Auth Error: ${e.code} - ${e.message}');
+      // Provide specific error messages
+      switch (e.code) {
+        case 'user-not-found':
+          throw Exception('No account found with this email');
+        case 'wrong-password':
+          throw Exception('Incorrect password');
+        case 'invalid-email':
+          throw Exception('Invalid email address');
+        case 'user-disabled':
+          throw Exception('This account has been disabled');
+        case 'invalid-credential':
+          throw Exception('Invalid email or password');
+        case 'too-many-requests':
+          throw Exception('Too many failed attempts. Please try again later');
+        default:
+          throw Exception('Login failed: ${e.message}');
+      }
     } catch (e) {
       print('Error signing in: $e');
-      return null;
+      if (e is Exception) {
+        rethrow; // Re-throw our custom exceptions
+      }
+      throw Exception('An unexpected error occurred during login');
     }
   }
 

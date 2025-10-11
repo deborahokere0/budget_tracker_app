@@ -54,4 +54,30 @@ class RuleModel {
           : null,
     );
   }
+
+  RuleModel copyWith({
+    String? id,
+    String? userId,
+    String? name,
+    String? type,
+    Map<String, dynamic>? conditions,
+    Map<String, dynamic>? actions,
+    int? priority,
+    bool? isActive,
+    DateTime? createdAt,
+    DateTime? lastTriggered,
+  }) {
+    return RuleModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      conditions: conditions ?? this.conditions,
+      actions: actions ?? this.actions,
+      priority: priority ?? this.priority,
+      isActive: isActive ?? this.isActive,
+      createdAt: createdAt ?? this.createdAt,
+      lastTriggered: lastTriggered ?? this.lastTriggered,
+    );
+  }
 }
