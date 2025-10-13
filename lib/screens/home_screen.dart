@@ -267,6 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
             MaterialPageRoute(
               builder: (_) => AddTransactionScreen(
                 onTransactionAdded: _loadDashboardStats,
+                initialTransactionType: 'expense', // Default to expense
               ),
             ),
           );

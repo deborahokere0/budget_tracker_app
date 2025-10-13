@@ -1,12 +1,15 @@
 class TransactionModel {
   String id;
   String userId;
-  String type; // 'income' or 'expense'
+  String type; // 'income', 'expense', or 'savings'
   String category;
   double amount;
   String description;
   DateTime date;
   String? source; // For income - salary, gig, etc.
+  String? paymentMethod;
+  List<String>? tags;
+  Map<String, dynamic>? metadata;
 
   TransactionModel({
     required this.id,
@@ -17,6 +20,9 @@ class TransactionModel {
     required this.description,
     required this.date,
     this.source,
+    this.paymentMethod,
+    this.tags,
+    this.metadata,
   });
 
   Map<String, dynamic> toMap() {
@@ -29,6 +35,9 @@ class TransactionModel {
       'description': description,
       'date': date.toIso8601String(),
       'source': source,
+      'paymentMethod': paymentMethod,
+      'tags': tags,
+      'metadata': metadata,
     };
   }
 
@@ -42,6 +51,11 @@ class TransactionModel {
       description: map['description'] ?? '',
       date: DateTime.parse(map['date'] ?? DateTime.now().toIso8601String()),
       source: map['source'],
+      paymentMethod: map['paymentMethod'],
+      tags: map['tags'] != null ? List<String>.from(map['tags']) : null,
+      metadata: map['metadata'] != null
+          ? Map<String, dynamic>.from(map['metadata'])
+          : null,
     );
   }
 }

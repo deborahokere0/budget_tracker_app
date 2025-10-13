@@ -4,6 +4,8 @@ import '../../models/budget_model.dart';
 import '../../services/firebase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/currency_formatter.dart';
+import '../transactions/add_transaction_screen.dart';
+import '../widgets/alert_banner.dart';
 
 class FixedEarnerDashboard extends StatelessWidget {
   final UserModel user;
@@ -58,7 +60,7 @@ class FixedEarnerDashboard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
@@ -136,6 +138,9 @@ class FixedEarnerDashboard extends StatelessWidget {
                 ),
               ),
 
+              // Alert Banners
+              AlertBannersContainer(userId: user.uid),
+
               // White content area
               Container(
                 decoration: const BoxDecoration(
@@ -190,7 +195,7 @@ class FixedEarnerDashboard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: AppTheme.orange.withOpacity(0.1),
+                            color: AppTheme.orange.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: AppTheme.orange),
                           ),
@@ -236,31 +241,7 @@ class FixedEarnerDashboard extends StatelessWidget {
                       const SizedBox(height: 24),
 
                       // Action Buttons
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.arrow_upward),
-                              label: const Text('ADD INCOME'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTheme.green,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.arrow_downward),
-                              label: const Text('ADD EXPENSE'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTheme.red,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                      _buildActionButtons(context)
                     ],
                   ),
                 ),
@@ -328,6 +309,58 @@ class FixedEarnerDashboard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddTransactionScreen(
+                    onTransactionAdded: onRefresh,
+                    initialTransactionType: 'income',
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.arrow_downward),
+            label: const Text('Add Income'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddTransactionScreen(
+                    onTransactionAdded: onRefresh,
+                    initialTransactionType: 'expense',
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.arrow_upward),
+            label: const Text('Add Expense'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.red,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

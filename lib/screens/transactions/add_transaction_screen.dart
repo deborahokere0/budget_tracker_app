@@ -6,10 +6,12 @@ import '../../theme/app_theme.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final VoidCallback onTransactionAdded;
+  final String? initialTransactionType;
 
   const AddTransactionScreen({
     super.key,
     required this.onTransactionAdded,
+    required this.initialTransactionType,
   });
 
   @override
@@ -55,6 +57,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialTransactionType != null) {
+      _transactionType = widget.initialTransactionType!;
+    }
     // Ensure selected category is valid for current type
     _selectedCategory = _currentCategories.first;
   }

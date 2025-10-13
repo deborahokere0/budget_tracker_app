@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import '../../services/firebase_service.dart';
 import '../../models/rule_model.dart';
+import '../../models/user_model.dart';
 import '../../theme/app_theme.dart';
+import '../profile/profile_screen.dart';
 
 class AddRuleScreen extends StatefulWidget {
   final String ruleType;
+  final RuleModel? existingRule;
 
   const AddRuleScreen({
     super.key,
     required this.ruleType,
+    this.existingRule,
   });
 
   @override
@@ -19,6 +23,8 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _amountController = TextEditingController();
+  final _goalNameController = TextEditingController();
+  final _targetAmountController = TextEditingController();
   final FirebaseService _firebaseService = FirebaseService();
 
   String _selectedCategory = 'Food';
@@ -26,6 +32,9 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
   int _priority = 1;
   bool _isActive = true;
   bool _isLoading = false;
+  bool _isPiggyBank = false;
+  UserModel? _currentUser;
+  double _totalAllocationPercent = 0.0;
 
   final List<String> _categories = [
     'Food', 'Transport', 'Data', 'Entertainment',
@@ -33,29 +42,129 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+    if (widget.ruleType == 'allocation') {
+      _calculateTotalAllocation();
+    }
+
+    // Pre-fill if editing
+    if (widget.existingRule != null) {
+      _prefillExistingRule();
+    }
+  }
+
+  void _prefillExistingRule() {
+    final rule = widget.existingRule!;
+    _nameController.text = rule.name;
+    _priority = rule.priority;
+    _isActive = rule.isActive;
+
+    switch (rule.type) {
+      case 'allocation':
+        _amountController.text = rule.conditions['minAmount']?.toString() ?? '';
+        _allocationPercent = rule.actions['allocateToSavings']?.toDouble() ?? 10.0;
+        break;
+      case 'savings':
+        _selectedCategory = rule.conditions['category'] ?? 'Food';
+        _isPiggyBank = rule.isPiggyBank ?? false;
+        if (!_isPiggyBank) {
+          _goalNameController.text = rule.goalName ?? '';
+          _targetAmountController.text = rule.targetAmount?.toString() ?? '';
+        }
+        break;
+      case 'alert':
+        _selectedCategory = rule.conditions['category'] ?? 'Food';
+        _amountController.text = rule.conditions['threshold']?.toString() ?? '';
+        break;
+    }
+  }
+
+  Future<void> _loadUserProfile() async {
+    try {
+      final user = await _firebaseService.getUserProfile(_firebaseService.currentUserId!);
+      if (mounted) {
+        setState(() => _currentUser = user);
+      }
+    } catch (e) {
+      print('Error loading user profile: $e');
+    }
+  }
+
+  Future<void> _calculateTotalAllocation() async {
+    try {
+      final rules = await _firebaseService.getRules().first;
+      final allocationRules = rules.where((r) =>
+      r.type == 'allocation' &&
+          r.isActive &&
+          (widget.existingRule == null || r.id != widget.existingRule!.id)
+      ).toList();
+
+      double total = 0.0;
+      for (var rule in allocationRules) {
+        total += (rule.actions['allocateToSavings'] ?? 0.0).toDouble();
+      }
+
+      if (mounted) {
+        setState(() => _totalAllocationPercent = total);
+      }
+    } catch (e) {
+      print('Error calculating allocation: $e');
+    }
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _amountController.dispose();
+    _goalNameController.dispose();
+    _targetAmountController.dispose();
     super.dispose();
   }
 
   Future<void> _saveRule() async {
     if (_formKey.currentState!.validate()) {
+      // Validate allocation doesn't exceed 100%
+      if (widget.ruleType == 'allocation') {
+        final newTotal = _totalAllocationPercent + _allocationPercent;
+        if (newTotal > 100) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Total allocation would be ${newTotal.toStringAsFixed(0)}%. Cannot exceed 100%'),
+              backgroundColor: AppTheme.red,
+            ),
+          );
+          return;
+        }
+      }
+
       setState(() => _isLoading = true);
 
       Map<String, dynamic> conditions = {};
       Map<String, dynamic> actions = {};
+      double? targetAmount;
+      double? currentAmount;
+      String? goalName;
+      bool? isPiggyBank;
 
       // Build conditions based on rule type
       switch (widget.ruleType) {
         case 'allocation':
           conditions['transactionType'] = 'income';
-          conditions['minAmount'] = double.tryParse(_amountController.text) ?? 0;
+          conditions['minAmount'] = _currentUser?.incomeType == 'fixed'
+              ? (_currentUser?.monthlyIncome ?? 0)
+              : (double.tryParse(_amountController.text) ?? 0);
           actions['allocateToSavings'] = _allocationPercent;
           break;
         case 'savings':
           conditions['category'] = _selectedCategory;
-          actions['savePercent'] = _allocationPercent;
+          isPiggyBank = _isPiggyBank;
+          if (!_isPiggyBank) {
+            goalName = _goalNameController.text;
+            targetAmount = double.tryParse(_targetAmountController.text) ?? 0;
+            currentAmount = widget.existingRule?.currentAmount ?? 0.0;
+          }
           break;
         case 'alert':
           conditions['category'] = _selectedCategory;
@@ -69,7 +178,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
       }
 
       final rule = RuleModel(
-        id: '',
+        id: widget.existingRule?.id ?? '',
         userId: _firebaseService.currentUserId!,
         name: _nameController.text,
         type: widget.ruleType,
@@ -77,17 +186,25 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         actions: actions,
         priority: _priority,
         isActive: _isActive,
-        createdAt: DateTime.now(),
+        createdAt: widget.existingRule?.createdAt ?? DateTime.now(),
+        targetAmount: targetAmount,
+        currentAmount: currentAmount,
+        goalName: goalName,
+        isPiggyBank: isPiggyBank,
       );
 
       try {
-        await _firebaseService.addRule(rule);
+        if (widget.existingRule != null) {
+          await _firebaseService.updateRule(rule);
+        } else {
+          await _firebaseService.addRule(rule);
+        }
 
         if (mounted) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Rule created successfully'),
+              content: Text('Rule ${widget.existingRule != null ? "updated" : "created"} successfully'),
               backgroundColor: AppTheme.green,
             ),
           );
@@ -96,7 +213,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Error creating rule: $e'),
+              content: Text('Error saving rule: $e'),
               backgroundColor: AppTheme.red,
             ),
           );
@@ -114,7 +231,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('Add ${_getRuleTypeTitle()} Rule'),
+        title: Text('${widget.existingRule != null ? "Edit" : "Add"} ${_getRuleTypeTitle()} Rule'),
         backgroundColor: AppTheme.primaryBlue,
         elevation: 0,
         foregroundColor: Colors.white,
@@ -198,9 +315,9 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
                 ),
                 child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                  'Save Rule',
-                  style: TextStyle(fontSize: 16),
+                    : Text(
+                  widget.existingRule != null ? 'Update Rule' : 'Save Rule',
+                  style: const TextStyle(fontSize: 16),
                 ),
               ),
             ],
@@ -215,21 +332,121 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
       case 'allocation':
         return Column(
           children: [
-            TextFormField(
-              controller: _amountController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Minimum Income Amount',
-                prefixText: '₦ ',
-                hintText: 'Apply when income is at least',
+            // Show allocation summary
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _totalAllocationPercent + _allocationPercent > 100
+                    ? AppTheme.red.withValues(alpha : 0.1)
+                    : AppTheme.green.withValues(alpha : 0.1),
+                borderRadius: BorderRadius.circular(12),
               ),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter an amount';
-                }
-                return null;
-              },
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Current Allocation:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text('${_totalAllocationPercent.toStringAsFixed(0)}%'),
+                    ],
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('This Rule:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text('${_allocationPercent.toStringAsFixed(0)}%'),
+                    ],
+                  ),
+                  const Divider(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text(
+                        '${(_totalAllocationPercent + _allocationPercent).toStringAsFixed(0)}%',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: _totalAllocationPercent + _allocationPercent > 100
+                              ? AppTheme.red
+                              : AppTheme.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Remaining:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text('${(100 - _totalAllocationPercent - _allocationPercent).toStringAsFixed(0)}%'),
+                    ],
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(height: 24),
+
+            // Minimum Income Amount
+            if (_currentUser?.incomeType == 'fixed')
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[300]!),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Monthly Salary',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '₦${_currentUser?.monthlyIncome?.toStringAsFixed(0) ?? "0"}',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: AppTheme.primaryBlue),
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                        );
+                        _loadUserProfile();
+                      },
+                    ),
+                  ],
+                ),
+              )
+            else
+              TextFormField(
+                controller: _amountController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Minimum Income Amount',
+                  prefixText: '₦ ',
+                  hintText: 'Apply when income is at least',
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter an amount';
+                  }
+                  return null;
+                },
+              ),
             const SizedBox(height: 24),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -257,10 +474,57 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
       case 'savings':
         return Column(
           children: [
+            // Piggy Bank Toggle
+            SwitchListTile(
+              title: const Text('Piggy Bank'),
+              subtitle: const Text('General savings without specific goal'),
+              value: _isPiggyBank,
+              activeThumbColor: AppTheme.primaryBlue,
+              onChanged: (value) {
+                setState(() => _isPiggyBank = value);
+              },
+            ),
+            const SizedBox(height: 16),
+
+            if (!_isPiggyBank) ...[
+              TextFormField(
+                controller: _goalNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Goal Name',
+                  hintText: 'e.g., New Laptop, Janet Asebi',
+                  prefixIcon: Icon(Icons.flag),
+                ),
+                validator: (value) {
+                  if (!_isPiggyBank && (value == null || value.isEmpty)) {
+                    return 'Please enter a goal name';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _targetAmountController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Target Amount',
+                  prefixText: '₦ ',
+                  hintText: 'How much to save',
+                  prefixIcon: Icon(Icons.savings),
+                ),
+                validator: (value) {
+                  if (!_isPiggyBank && (value == null || value.isEmpty)) {
+                    return 'Please enter target amount';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+
             DropdownButtonFormField<String>(
-              initialValue: _selectedCategory,
+              initialValue:_selectedCategory,
               decoration: const InputDecoration(
-                labelText: 'Category',
+                labelText: 'Category to Save From',
                 prefixIcon: Icon(Icons.category),
               ),
               items: _categories
@@ -273,27 +537,6 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
                 setState(() => _selectedCategory = value!);
               },
             ),
-            const SizedBox(height: 24),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Save Percentage: ${_allocationPercent.toStringAsFixed(0)}%',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                Slider(
-                  value: _allocationPercent,
-                  min: 5,
-                  max: 30,
-                  divisions: 5,
-                  label: '${_allocationPercent.toStringAsFixed(0)}%',
-                  activeColor: AppTheme.green,
-                  onChanged: (value) {
-                    setState(() => _allocationPercent = value);
-                  },
-                ),
-              ],
-            ),
           ],
         );
 
@@ -301,7 +544,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         return Column(
           children: [
             DropdownButtonFormField<String>(
-              initialValue: _selectedCategory,
+              initialValue:_selectedCategory,
               decoration: const InputDecoration(
                 labelText: 'Category',
                 prefixIcon: Icon(Icons.category),
@@ -340,7 +583,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
           child: Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppTheme.orange.withValues(alpha: 0.1),
+              color: AppTheme.orange.withValues(alpha : 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(

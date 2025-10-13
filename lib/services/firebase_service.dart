@@ -538,4 +538,168 @@ class FirebaseService {
       rethrow;
     }
   }
+
+  // Get category spending for alert checking
+  Stream<Map<String, double>> getCategorySpending(String userId) {
+    return _firestore
+        .collection('transactions')
+        .where('userId', isEqualTo: userId)
+        .where('type', isEqualTo: 'expense')
+        .snapshots()
+        .map((snapshot) {
+      final Map<String, double> categoryTotals = {};
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final category = data['category'] as String? ?? 'Other';
+        final amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
+
+        categoryTotals[category] = (categoryTotals[category] ?? 0.0) + amount;
+      }
+
+      return categoryTotals;
+    });
+  }
+
+// Update savings rule progress
+  Future<void> updateSavingsProgress(String ruleId, double amountToAdd) async {
+    try {
+      final ruleDoc = await _firestore.collection('rules').doc(ruleId).get();
+      if (!ruleDoc.exists) return;
+
+      final rule = RuleModel.fromMap(ruleDoc.data()!);
+      final newAmount = (rule.currentAmount ?? 0.0) + amountToAdd;
+
+      await _firestore.collection('rules').doc(ruleId).update({
+        'currentAmount': newAmount,
+      });
+    } catch (e) {
+      print('Error updating savings progress: $e');
+      rethrow;
+    }
+  }
+
+// Create savings transaction
+  Future<void> createSavingsTransaction({
+    required String userId,
+    required String ruleId,
+    required double amount,
+    required String goalName,
+    bool isPiggyBank = false,
+  }) async {
+    try {
+      final transaction = TransactionModel(
+        id: '',
+        userId: userId,
+        type: 'savings',
+        category: isPiggyBank ? 'Piggybank' : goalName,
+        amount: amount,
+        description: isPiggyBank
+            ? 'Piggybank savings'
+            : 'Savings for $goalName',
+        date: DateTime.now(),
+        paymentMethod: 'transfer',
+        tags: ['savings', if (isPiggyBank) 'piggybank'],
+        metadata: {
+          'ruleId': ruleId,
+          'isPiggyBank': isPiggyBank,
+        },
+      );
+
+      await addTransaction(transaction);
+
+      // Update rule progress if not piggybank
+      if (!isPiggyBank) {
+        await updateSavingsProgress(ruleId, amount);
+      }
+    } catch (e) {
+      print('Error creating savings transaction: $e');
+      rethrow;
+    }
+  }
+
+// Get total savings amount
+  Future<double> getTotalSavings(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('transactions')
+          .where('userId', isEqualTo: userId)
+          .where('type', isEqualTo: 'savings')
+          .get();
+
+      double total = 0.0;
+      for (var doc in snapshot.docs) {
+        total += (doc.data()['amount'] as num?)?.toDouble() ?? 0.0;
+      }
+
+      return total;
+    } catch (e) {
+      print('Error getting total savings: $e');
+      return 0.0;
+    }
+  }
+
+// Get savings by category/goal
+  Future<Map<String, double>> getSavingsByGoal(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('transactions')
+          .where('userId', isEqualTo: userId)
+          .where('type', isEqualTo: 'savings')
+          .get();
+
+      final Map<String, double> goalTotals = {};
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final category = data['category'] as String? ?? 'Unknown';
+        final amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
+
+        goalTotals[category] = (goalTotals[category] ?? 0.0) + amount;
+      }
+
+      return goalTotals;
+    } catch (e) {
+      print('Error getting savings by goal: $e');
+      return {};
+    }
+  }
+
+// Check and trigger allocation rules
+  Future<void> checkAllocationRules(String userId, double incomeAmount) async {
+    try {
+      final rulesSnapshot = await _firestore
+          .collection('rules')
+          .where('userId', isEqualTo: userId)
+          .where('type', isEqualTo: 'allocation')
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      for (var doc in rulesSnapshot.docs) {
+        final rule = RuleModel.fromMap(doc.data());
+        final minAmount = rule.conditions['minAmount'] as num? ?? 0;
+
+        if (incomeAmount >= minAmount) {
+          final allocatePercent = rule.actions['allocateToSavings'] as num? ?? 0;
+          final savingsAmount = incomeAmount * (allocatePercent / 100);
+
+          // Create automatic savings transaction
+          await createSavingsTransaction(
+            userId: userId,
+            ruleId: rule.id,
+            amount: savingsAmount,
+            goalName: 'Auto-Allocation',
+            isPiggyBank: true, // Auto-allocation goes to piggybank
+          );
+
+          // Update last triggered
+          await _firestore.collection('rules').doc(rule.id).update({
+            'lastTriggered': DateTime.now().toIso8601String(),
+          });
+        }
+      }
+    } catch (e) {
+      print('Error checking allocation rules: $e');
+    }
+  }
 }

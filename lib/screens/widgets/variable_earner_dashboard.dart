@@ -5,6 +5,8 @@ import '../../models/transaction_model.dart';
 import '../../services/firebase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/currency_formatter.dart';
+import '../transactions/add_transaction_screen.dart';
+import '../widgets/alert_banner.dart';
 
 class VariableEarnerDashboard extends StatelessWidget {
   final UserModel user;
@@ -61,7 +63,7 @@ class VariableEarnerDashboard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white..withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
@@ -182,6 +184,9 @@ class VariableEarnerDashboard extends StatelessWidget {
                 ),
               ),
 
+              // Alert Banners
+              AlertBannersContainer(userId: user.uid),
+
               // White content area
               Container(
                 decoration: const BoxDecoration(
@@ -241,7 +246,7 @@ class VariableEarnerDashboard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: AppTheme.green.withOpacity(0.1),
+                            color: AppTheme.green..withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: AppTheme.green),
                           ),
@@ -280,7 +285,7 @@ class VariableEarnerDashboard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryBlue.withOpacity(0.1),
+                          color: AppTheme.primaryBlue..withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
@@ -421,33 +426,7 @@ class VariableEarnerDashboard extends StatelessWidget {
                       const SizedBox(height: 24),
 
                       // Action Buttons
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {},
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: AppTheme.primaryBlue,
-                                side: BorderSide(color: AppTheme.primaryBlue),
-                              ),
-                              child: const Text('Add Income'),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {},
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: AppTheme.primaryBlue,
-                                side: BorderSide(color: AppTheme.primaryBlue),
-                              ),
-                              child: const Text('Add Expenses'),
-                            ),
-                          ),
-                        ],
-                      ),
+                      _buildActionButtons(context)
                     ],
                   ),
                 ),
@@ -474,7 +453,7 @@ class VariableEarnerDashboard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey..withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 3,
           ),
@@ -517,6 +496,58 @@ class VariableEarnerDashboard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddTransactionScreen(
+                    onTransactionAdded: onRefresh,
+                    initialTransactionType: 'income',
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.arrow_downward),
+            label: const Text('Add Income'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddTransactionScreen(
+                    onTransactionAdded: onRefresh,
+                    initialTransactionType: 'expense',
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.arrow_upward),
+            label: const Text('Add Expense'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.red,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

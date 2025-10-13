@@ -10,6 +10,12 @@ class RuleModel {
   DateTime createdAt;
   DateTime? lastTriggered;
 
+  // Savings-specific fields
+  double? targetAmount;
+  double? currentAmount;
+  String? goalName;
+  bool? isPiggyBank;
+
   RuleModel({
     required this.id,
     required this.userId,
@@ -21,6 +27,10 @@ class RuleModel {
     this.isActive = true,
     required this.createdAt,
     this.lastTriggered,
+    this.targetAmount,
+    this.currentAmount,
+    this.goalName,
+    this.isPiggyBank,
   });
 
   Map<String, dynamic> toMap() {
@@ -35,6 +45,10 @@ class RuleModel {
       'isActive': isActive,
       'createdAt': createdAt.toIso8601String(),
       'lastTriggered': lastTriggered?.toIso8601String(),
+      'targetAmount': targetAmount,
+      'currentAmount': currentAmount,
+      'goalName': goalName,
+      'isPiggyBank': isPiggyBank,
     };
   }
 
@@ -52,6 +66,10 @@ class RuleModel {
       lastTriggered: map['lastTriggered'] != null
           ? DateTime.parse(map['lastTriggered'])
           : null,
+      targetAmount: map['targetAmount']?.toDouble(),
+      currentAmount: map['currentAmount']?.toDouble(),
+      goalName: map['goalName'],
+      isPiggyBank: map['isPiggyBank'],
     );
   }
 
@@ -66,6 +84,10 @@ class RuleModel {
     bool? isActive,
     DateTime? createdAt,
     DateTime? lastTriggered,
+    double? targetAmount,
+    double? currentAmount,
+    String? goalName,
+    bool? isPiggyBank,
   }) {
     return RuleModel(
       id: id ?? this.id,
@@ -78,6 +100,18 @@ class RuleModel {
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       lastTriggered: lastTriggered ?? this.lastTriggered,
+      targetAmount: targetAmount ?? this.targetAmount,
+      currentAmount: currentAmount ?? this.currentAmount,
+      goalName: goalName ?? this.goalName,
+      isPiggyBank: isPiggyBank ?? this.isPiggyBank,
     );
+  }
+
+  // Helper to get savings progress percentage
+  double get savingsProgress {
+    if (targetAmount == null || targetAmount == 0 || currentAmount == null) {
+      return 0.0;
+    }
+    return (currentAmount! / targetAmount! * 100).clamp(0, 100);
   }
 }

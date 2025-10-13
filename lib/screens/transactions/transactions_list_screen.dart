@@ -108,7 +108,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (_) => AddTransactionScreen(
-                    onTransactionAdded: () {},
+                    onTransactionAdded: () {}, initialTransactionType: 'expense',
                   ),
                 ),
               );

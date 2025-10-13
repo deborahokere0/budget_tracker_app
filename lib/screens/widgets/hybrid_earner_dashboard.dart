@@ -4,6 +4,8 @@ import '../../models/budget_model.dart';
 import '../../services/firebase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/currency_formatter.dart';
+import '../transactions/add_transaction_screen.dart';
+import '../widgets/alert_banner.dart';
 
 class HybridEarnerDashboard extends StatelessWidget {
   final UserModel user;
@@ -163,6 +165,8 @@ class HybridEarnerDashboard extends StatelessWidget {
                   ],
                 ),
               ),
+              // Alert Banners
+              AlertBannersContainer(userId: user.uid),
 
               // Content Area
               Container(
@@ -404,37 +408,7 @@ class HybridEarnerDashboard extends StatelessWidget {
                       const SizedBox(height: 20),
 
                       // Action Buttons
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.arrow_downward),
-                              label: const Text('Add Income'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: AppTheme.primaryBlue,
-                                side: const BorderSide(color: AppTheme.primaryBlue),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () {},
-                              icon: const Icon(Icons.arrow_upward),
-                              label: const Text('Add Expense'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: AppTheme.primaryBlue,
-                                side: const BorderSide(color: AppTheme.primaryBlue),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                      _buildActionButtons(context, onRefresh)
                     ],
                   ),
                 ),
@@ -514,6 +488,58 @@ class HybridEarnerDashboard extends StatelessWidget {
       ),
     );
   }
+}
+
+Widget _buildActionButtons(BuildContext context, VoidCallback onRefresh) {
+  return Row(
+    children: [
+      Expanded(
+        child: ElevatedButton.icon(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AddTransactionScreen(
+                  onTransactionAdded: onRefresh,
+                  initialTransactionType: 'income',
+                ),
+              ),
+            );
+          },
+          icon: const Icon(Icons.arrow_downward),
+          label: const Text('Add Income'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.green,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+        ),
+      ),
+      const SizedBox(width: 16),
+      Expanded(
+        child: ElevatedButton.icon(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AddTransactionScreen(
+                  onTransactionAdded: onRefresh,
+                  initialTransactionType: 'expense',
+                ),
+              ),
+            );
+          },
+          icon: const Icon(Icons.arrow_upward),
+          label: const Text('Add Expense'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.red,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 // Custom Pie Chart Painter
