@@ -15,7 +15,7 @@ class FirebaseService {
 
 // Authentication
   Future<User?> signUp(String email, String password, String fullName,
-      String username, String incomeType) async {
+      String username, String incomeType, double monthlyIncome) async {
     try {
       UserCredential result = await _auth.createUserWithEmailAndPassword(
         email: email,
@@ -30,6 +30,7 @@ class FirebaseService {
           fullName: fullName,
           username: username,
           incomeType: incomeType,
+          monthlyIncome: monthlyIncome,
           createdAt: DateTime.now(),
         );
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../services/firebase_service.dart';
 import '../../theme/app_theme.dart';
 
@@ -15,6 +16,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _passwordController = TextEditingController();
   final _fullNameController = TextEditingController();
   final _usernameController = TextEditingController();
+  final _monthlyIncomeController = TextEditingController();
   final FirebaseService _firebaseService = FirebaseService();
 
   String _selectedIncomeType = 'fixed';
@@ -50,6 +52,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           _fullNameController.text.trim(),
           _usernameController.text.trim(),
           _selectedIncomeType,
+          double.parse(_monthlyIncomeController.text.trim()),
         );
 
         if (user != null && mounted) {
@@ -194,6 +197,34 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     return null;
                   },
                 ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _monthlyIncomeController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                      RegExp(r'^\d+\.?\d{0,2}'),
+                    ),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'Income',
+                    prefixText: '₦ ',
+                    hintText: 'Enter your income',
+                    prefixIcon: Icon(Icons.attach_money),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Monthly income is required';
+                    }
+                    if (double.tryParse(value) == null) {
+                      return 'Please enter a valid number';
+                    }
+                    if (double.parse(value) <= 0) {
+                      return 'Monthly income must be greater than 0';
+                    }
+                    return null;
+                  },
+                ),
                 const SizedBox(height: 24),
                 Text(
                   'Income Type',
@@ -263,6 +294,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _passwordController.dispose();
     _fullNameController.dispose();
     _usernameController.dispose();
+    _monthlyIncomeController.dispose();
     super.dispose();
   }
 }

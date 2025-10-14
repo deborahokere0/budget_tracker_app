@@ -301,7 +301,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
       backgroundColor: Colors.white.withValues(alpha:0.2),
       selectedColor: Colors.white,
       labelStyle: TextStyle(
-        color: isSelected ? AppTheme.primaryBlue : Colors.white,
+        color: isSelected ? AppTheme.primaryBlue : AppTheme.darkBlue,
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
       ),
     );
