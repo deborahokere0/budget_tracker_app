@@ -4,6 +4,7 @@ import '../../services/firebase_service.dart';
 import '../../models/rule_model.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/currency_formatter.dart';
+import '../profile/profile_screen.dart';
 import 'add_rule_screen.dart';
 
 class RulesScreen extends StatefulWidget {
@@ -13,7 +14,8 @@ class RulesScreen extends StatefulWidget {
   State<RulesScreen> createState() => _RulesScreenState();
 }
 
-class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStateMixin {
+class _RulesScreenState extends State<RulesScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final FirebaseService _firebaseService = FirebaseService();
 
@@ -31,21 +33,30 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
 
   String get _currentRuleType {
     switch (_tabController.index) {
-      case 0: return 'allocation';
-      case 1: return 'savings';
-      case 2: return 'alert';
-      case 3: return 'boost';
-      default: return 'allocation';
+      case 0:
+        return 'allocation';
+      case 1:
+        return 'savings';
+      case 2:
+        return 'alert';
+      case 3:
+        return 'boost';
+      default:
+        return 'allocation';
     }
   }
 
   Future<void> _toggleRule(RuleModel rule) async {
     try {
-      await _firebaseService.updateRule(rule.copyWith(isActive: !rule.isActive));
+      await _firebaseService.updateRule(
+        rule.copyWith(isActive: !rule.isActive),
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Rule ${!rule.isActive ? 'activated' : 'deactivated'}'),
+            content: Text(
+              'Rule ${!rule.isActive ? 'activated' : 'deactivated'}',
+            ),
             backgroundColor: AppTheme.green,
           ),
         );
@@ -84,7 +95,10 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
         await _firebaseService.deleteRule(rule.id);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Rule deleted'), backgroundColor: AppTheme.green),
+            const SnackBar(
+              content: Text('Rule deleted'),
+              backgroundColor: AppTheme.green,
+            ),
           );
         }
       } catch (e) {
@@ -101,10 +115,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddRuleScreen(
-          ruleType: rule.type,
-          existingRule: rule,
-        ),
+        builder: (_) => AddRuleScreen(ruleType: rule.type, existingRule: rule),
       ),
     );
   }
@@ -133,24 +144,47 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
               ),
             ),
             const SizedBox(height: 20),
-            Text(rule.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            Text(
+              rule.name,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
-            Text(rule.type.toUpperCase(), style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+            Text(
+              rule.type.toUpperCase(),
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+            ),
             const Divider(height: 30),
             _buildDetailRow('Priority', 'Level ${rule.priority}'),
             _buildDetailRow('Status', rule.isActive ? 'Active' : 'Inactive'),
-            _buildDetailRow('Created', '${rule.createdAt.day}/${rule.createdAt.month}/${rule.createdAt.year}'),
+            _buildDetailRow(
+              'Created',
+              '${rule.createdAt.day}/${rule.createdAt.month}/${rule.createdAt.year}',
+            ),
 
-            if (rule.type == 'savings' && rule.isPiggyBank != null && !rule.isPiggyBank!) ...[
+            if (rule.type == 'savings' &&
+                rule.isPiggyBank != null &&
+                !rule.isPiggyBank!) ...[
               const SizedBox(height: 16),
               _buildDetailRow('Goal', rule.goalName ?? 'N/A'),
-              _buildDetailRow('Target', CurrencyFormatter.format(rule.targetAmount ?? 0)),
-              _buildDetailRow('Current', CurrencyFormatter.format(rule.currentAmount ?? 0)),
-              _buildDetailRow('Progress', '${rule.savingsProgress.toStringAsFixed(1)}%'),
+              _buildDetailRow(
+                'Target',
+                CurrencyFormatter.format(rule.targetAmount ?? 0),
+              ),
+              _buildDetailRow(
+                'Current',
+                CurrencyFormatter.format(rule.currentAmount ?? 0),
+              ),
+              _buildDetailRow(
+                'Progress',
+                '${rule.savingsProgress.toStringAsFixed(1)}%',
+              ),
             ],
 
             const SizedBox(height: 16),
-            const Text('Description', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Description',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
@@ -162,7 +196,10 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
               child: Text(_getRuleDescription(rule)),
             ),
             const SizedBox(height: 16),
-            const Text('Conditions', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Conditions',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
@@ -171,10 +208,17 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                 color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(rule.conditions.entries.map((e) => '${e.key}: ${e.value}').join('\n')),
+              child: Text(
+                rule.conditions.entries
+                    .map((e) => '${e.key}: ${e.value}')
+                    .join('\n'),
+              ),
             ),
             const SizedBox(height: 16),
-            const Text('Actions', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text(
+              'Actions',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
@@ -183,7 +227,11 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                 color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text(rule.actions.entries.map((e) => '${e.key}: ${e.value}').join('\n')),
+              child: Text(
+                rule.actions.entries
+                    .map((e) => '${e.key}: ${e.value}')
+                    .join('\n'),
+              ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -311,9 +359,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => AddRuleScreen(
-                ruleType: _currentRuleType,
-              ),
+              builder: (_) => AddRuleScreen(ruleType: _currentRuleType),
             ),
           );
         },
@@ -338,18 +384,23 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
               children: [
                 Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
                 const SizedBox(height: 16),
-                Text('Error loading rules', style: TextStyle(color: Colors.red[600])),
+                Text(
+                  'Error loading rules',
+                  style: TextStyle(color: Colors.red[600]),
+                ),
               ],
             ),
           );
         }
 
-        final allocationRules = snapshot.data?.where((r) => r.type == 'allocation').toList() ?? [];
+        final allocationRules =
+            snapshot.data?.where((r) => r.type == 'allocation').toList() ?? [];
 
         // Calculate total allocation
         double totalAllocated = 0;
         for (var rule in allocationRules.where((r) => r.isActive)) {
-          totalAllocated += (rule.actions['allocateToSavings'] ?? 0.0).toDouble();
+          totalAllocated += (rule.actions['allocateToSavings'] ?? 0.0)
+              .toDouble();
         }
         double remaining = 100 - totalAllocated;
 
@@ -359,41 +410,72 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
             children: [
               // Allocation Summary
               FutureBuilder<UserModel?>(
-                future: _firebaseService.getUserProfile(_firebaseService.currentUserId!),
+                future: _firebaseService.getUserProfile(
+                  _firebaseService.currentUserId!,
+                ),
                 builder: (context, userSnapshot) {
                   final monthlyIncome = userSnapshot.data?.monthlyIncome ?? 0.0;
 
                   return Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryBlue.withOpacity(0.1),
+                      color: AppTheme.primaryBlue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Column(
                       children: [
-                        Text(
-                          'Monthly Income',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primaryBlue,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          CurrencyFormatter.format(monthlyIncome),
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.primaryBlue,
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Monthly Income',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.primaryBlue,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    CurrencyFormatter.format(monthlyIncome),
+                                    style: TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.primaryBlue,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.edit,
+                                color: AppTheme.primaryBlue,
+                                size: 28,
+                              ),
+                              onPressed: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const ProfileScreen(),
+                                  ),
+                                );
+                                setState(() {});
+                              },
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 16),
                         LinearProgressIndicator(
                           value: totalAllocated / 100,
                           backgroundColor: Colors.grey[300],
                           valueColor: AlwaysStoppedAnimation<Color>(
-                              totalAllocated > 100 ? AppTheme.red : AppTheme.primaryBlue
+                            totalAllocated > 100
+                                ? AppTheme.red
+                                : AppTheme.primaryBlue,
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -411,7 +493,9 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                               '${remaining.toStringAsFixed(0)}% remaining',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: remaining < 0 ? AppTheme.red : AppTheme.green,
+                                color: remaining < 0
+                                    ? AppTheme.red
+                                    : AppTheme.green,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -446,10 +530,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                     const SizedBox(height: 8),
                     Text(
                       'Determine the distribution of income into predefined budgets',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[700],
-                      ),
+                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                     ),
                   ],
                 ),
@@ -476,25 +557,16 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                 Center(
                   child: Column(
                     children: [
-                      Icon(
-                        Icons.rule,
-                        size: 64,
-                        color: Colors.grey[400],
-                      ),
+                      Icon(Icons.rule, size: 64, color: Colors.grey[400]),
                       const SizedBox(height: 16),
                       Text(
                         'No allocation rules yet',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Tap + to create your first rule',
-                        style: TextStyle(
-                          color: Colors.grey[500],
-                        ),
+                        style: TextStyle(color: Colors.grey[500]),
                       ),
                     ],
                   ),
@@ -514,7 +586,8 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
           return const Center(child: CircularProgressIndicator());
         }
 
-        final savingsRules = snapshot.data?.where((r) => r.type == 'savings').toList() ?? [];
+        final savingsRules =
+            snapshot.data?.where((r) => r.type == 'savings').toList() ?? [];
 
         // Calculate total savings
         double totalSavings = 0;
@@ -540,7 +613,9 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                           value: totalSavings > 0 ? 0.7 : 0,
                           strokeWidth: 12,
                           backgroundColor: Colors.grey[300],
-                          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.green),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppTheme.green,
+                          ),
                         ),
                       ),
                       Column(
@@ -590,10 +665,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                     const SizedBox(height: 8),
                     Text(
                       'Save towards specific goals or general piggy bank',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[700],
-                      ),
+                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                     ),
                   ],
                 ),
@@ -602,7 +674,9 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
               const SizedBox(height: 20),
 
               // Savings Goals
-              if (savingsRules.where((r) => r.isPiggyBank != true).isNotEmpty) ...[
+              if (savingsRules
+                  .where((r) => r.isPiggyBank != true)
+                  .isNotEmpty) ...[
                 const Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
@@ -650,25 +724,16 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                 Center(
                   child: Column(
                     children: [
-                      Icon(
-                        Icons.savings,
-                        size: 64,
-                        color: Colors.grey[400],
-                      ),
+                      Icon(Icons.savings, size: 64, color: Colors.grey[400]),
                       const SizedBox(height: 16),
                       Text(
                         'No savings goals yet',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Tap + to create your first savings goal',
-                        style: TextStyle(
-                          color: Colors.grey[500],
-                        ),
+                        style: TextStyle(color: Colors.grey[500]),
                       ),
                     ],
                   ),
@@ -688,7 +753,8 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
           return const Center(child: CircularProgressIndicator());
         }
 
-        final alertRules = snapshot.data?.where((r) => r.type == 'alert').toList() ?? [];
+        final alertRules =
+            snapshot.data?.where((r) => r.type == 'alert').toList() ?? [];
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -697,7 +763,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryBlue.withOpacity(0.1),
+                  color: AppTheme.primaryBlue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -718,9 +784,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                     const SizedBox(height: 8),
                     Text(
                       'Stay ahead of bills and budgets! Choose when and how we notify you.',
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                      ),
+                      style: TextStyle(color: Colors.grey[700]),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -749,25 +813,16 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                   child: Column(
                     children: [
                       const SizedBox(height: 40),
-                      Icon(
-                        Icons.rule,
-                        size: 64,
-                        color: Colors.grey[400],
-                      ),
+                      Icon(Icons.rule, size: 64, color: Colors.grey[400]),
                       const SizedBox(height: 16),
                       Text(
                         'No alert rules yet',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 16, color: Colors.grey[600]),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Tap + to create your first alert rule',
-                        style: TextStyle(
-                          color: Colors.grey[500],
-                        ),
+                        style: TextStyle(color: Colors.grey[500]),
                       ),
                     ],
                   ),
@@ -787,7 +842,8 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
           return const Center(child: CircularProgressIndicator());
         }
 
-        final boostRules = snapshot.data?.where((r) => r.type == 'boost').toList() ?? [];
+        final boostRules =
+            snapshot.data?.where((r) => r.type == 'boost').toList() ?? [];
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -795,25 +851,16 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(height: 60),
-              Icon(
-                Icons.rocket_launch,
-                size: 80,
-                color: AppTheme.orange,
-              ),
+              Icon(Icons.rocket_launch, size: 80, color: AppTheme.orange),
               const SizedBox(height: 24),
               const Text(
                 'Boost Coming Soon!',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               Text(
                 'AI-powered spending insights and optimization tips will be available here',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(color: Colors.grey[600]),
                 textAlign: TextAlign.center,
               ),
 
@@ -850,7 +897,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
         border: Border.all(color: Colors.grey[300]!),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 3,
             offset: const Offset(0, 1),
@@ -882,10 +929,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                 const SizedBox(height: 4),
                 Text(
                   _getRuleDescription(rule),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -901,11 +945,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
                 color: AppTheme.red,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(
-                Icons.flag,
-                color: Colors.white,
-                size: 16,
-              ),
+              child: const Icon(Icons.flag, color: Colors.white, size: 16),
             ),
         ],
       ),
@@ -914,14 +954,20 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
 
   Widget _buildSavingsGoalCard(RuleModel rule) {
     final progress = rule.savingsProgress / 100;
-    final colors = [AppTheme.red, AppTheme.green, Colors.purple, AppTheme.orange, AppTheme.primaryBlue];
+    final colors = [
+      AppTheme.red,
+      AppTheme.green,
+      Colors.purple,
+      AppTheme.orange,
+      AppTheme.primaryBlue,
+    ];
     final color = colors[rule.name.hashCode % colors.length];
 
     return Container(
       width: (MediaQuery.of(context).size.width - 56) / 2,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color),
       ),
@@ -930,20 +976,14 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
         children: [
           Text(
             rule.goalName ?? 'Unknown',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, color: color),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 8),
           Text(
             CurrencyFormatter.format(rule.currentAmount ?? 0),
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           LinearProgressIndicator(
@@ -954,10 +994,7 @@ class _RulesScreenState extends State<RulesScreen> with SingleTickerProviderStat
           const SizedBox(height: 8),
           Text(
             '${rule.savingsProgress.toStringAsFixed(0)}% of ${CurrencyFormatter.format(rule.targetAmount ?? 0)}',
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 10, color: Colors.grey[600]),
           ),
         ],
       ),

@@ -3,7 +3,6 @@ import '../../services/firebase_service.dart';
 import '../../models/rule_model.dart';
 import '../../models/user_model.dart';
 import '../../theme/app_theme.dart';
-import '../profile/profile_screen.dart';
 
 class AddRuleScreen extends StatefulWidget {
   final String ruleType;
@@ -125,6 +124,18 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
 
   Future<void> _saveRule() async {
     if (_formKey.currentState!.validate()) {
+      // Validate monthly income for fixed income users
+      if (widget.ruleType == 'allocation' && _currentUser?.incomeType == 'fixed') {
+        if (_currentUser?.monthlyIncome == null || _currentUser!.monthlyIncome! <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Monthly income can\'t be 0. Please update your profile with your income'),
+              backgroundColor: AppTheme.red,
+            ),
+          );
+          return;
+        }
+      }
       // Validate allocation doesn't exceed 100%
       if (widget.ruleType == 'allocation') {
         final newTotal = _totalAllocationPercent + _allocationPercent;
@@ -418,16 +429,16 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: AppTheme.primaryBlue),
-                      onPressed: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                        );
-                        _loadUserProfile();
-                      },
-                    ),
+                    // IconButton(
+                    //   icon: const Icon(Icons.edit, color: AppTheme.primaryBlue),
+                    //   onPressed: () async {
+                    //     await Navigator.push(
+                    //       context,
+                    //       MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                    //     );
+                    //     _loadUserProfile();
+                    //   },
+                    // ),
                   ],
                 ),
               )
