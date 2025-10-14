@@ -162,7 +162,6 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'fixed':
         return FixedEarnerDashboard(
           user: _currentUser!,
-          stats: _dashboardStats,
           onRefresh: _loadDashboardStats,
         );
       case 'variable':
@@ -174,13 +173,11 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'hybrid':
         return HybridEarnerDashboard(
           user: _currentUser!,
-          stats: _dashboardStats,
           onRefresh: _loadDashboardStats,
         );
       default:
         return FixedEarnerDashboard(
           user: _currentUser!,
-          stats: _dashboardStats,
           onRefresh: _loadDashboardStats,
         );
     }
