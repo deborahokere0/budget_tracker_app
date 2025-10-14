@@ -400,47 +400,47 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
             // Minimum Income Amount
             if (_currentUser?.incomeType == 'fixed')
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(1),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey[300]!),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Monthly Salary',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '₦${_currentUser?.monthlyIncome?.toStringAsFixed(0) ?? "0"}',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // IconButton(
-                    //   icon: const Icon(Icons.edit, color: AppTheme.primaryBlue),
-                    //   onPressed: () async {
-                    //     await Navigator.push(
-                    //       context,
-                    //       MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                    //     );
-                    //     _loadUserProfile();
-                    //   },
-                    // ),
-                  ],
-                ),
+                // child: Row(
+                //   children: [
+                //     Expanded(
+                //       child: Column(
+                //         crossAxisAlignment: CrossAxisAlignment.start,
+                //         children: [
+                //           const Text(
+                //             'Monthly Salary',
+                //             style: TextStyle(
+                //               fontSize: 12,
+                //               color: Colors.grey,
+                //             ),
+                //           ),
+                //           const SizedBox(height: 4),
+                //           Text(
+                //             '₦${_currentUser?.monthlyIncome?.toStringAsFixed(0) ?? "0"}',
+                //             style: const TextStyle(
+                //               fontSize: 20,
+                //               fontWeight: FontWeight.bold,
+                //             ),
+                //           ),
+                //         ],
+                //       ),
+                //     ),
+                //     // IconButton(
+                //     //   icon: const Icon(Icons.edit, color: AppTheme.primaryBlue),
+                //     //   onPressed: () async {
+                //     //     await Navigator.push(
+                //     //       context,
+                //     //       MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                //     //     );
+                //     //     _loadUserProfile();
+                //     //   },
+                //     // ),
+                //   ],
+                // ),
               )
             else
               TextFormField(
