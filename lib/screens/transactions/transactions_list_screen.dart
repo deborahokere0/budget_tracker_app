@@ -44,54 +44,6 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
     return filtered;
   }
 
-  Future<void> _deleteTransaction(TransactionModel transaction) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Transaction'),
-        content: Text(
-          'Are you sure you want to delete this transaction?\n\n'
-              '${transaction.description}\n'
-              '${CurrencyFormatter.format(transaction.amount)}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: AppTheme.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      try {
-        await _firebaseService.deleteTransaction(transaction.id);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Transaction deleted successfully'),
-              backgroundColor: AppTheme.green,
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error deleting transaction: $e'),
-              backgroundColor: AppTheme.red,
-            ),
-          );
-        }
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -108,7 +60,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (_) => AddTransactionScreen(
-                    onTransactionAdded: () {}, initialTransactionType: 'expense',
+                    onTransactionAdded: () {},
                   ),
                 ),
               );
@@ -298,7 +250,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
       onSelected: (selected) {
         setState(() => _filterType = value);
       },
-      backgroundColor: Colors.white.withValues(alpha:0.2),
+      backgroundColor: Colors.white.withValues(alpha: 0.2),
       selectedColor: Colors.white,
       labelStyle: TextStyle(
         color: isSelected ? AppTheme.primaryBlue : AppTheme.darkBlue,
@@ -308,101 +260,240 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
   }
 
   Widget _buildTransactionCard(TransactionModel transaction) {
-    final isIncome = transaction.type == 'income';
-    final color = isIncome ? AppTheme.green : AppTheme.red;
-    final icon = isIncome ? Icons.arrow_downward : Icons.arrow_upward;
+    final isExpense = transaction.type == 'expense';
+    final color = isExpense ? AppTheme.red : AppTheme.green;
+    final icon = isExpense ? Icons.arrow_upward : Icons.arrow_downward;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Dismissible(
-        key: Key(transaction.id),
-        direction: DismissDirection.endToStart,
-        background: Container(
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 20),
-          decoration: BoxDecoration(
-            color: AppTheme.red,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.delete,
-            color: Colors.white,
-          ),
+    return Dismissible(
+      key: Key(transaction.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(
+          color: AppTheme.red,
+          borderRadius: BorderRadius.circular(12),
         ),
-        confirmDismiss: (direction) async {
-          return await showDialog<bool>(
-            context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Delete Transaction'),
-              content: const Text('Are you sure you want to delete this transaction?'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  style: TextButton.styleFrom(foregroundColor: AppTheme.red),
-                  child: const Text('Delete'),
-                ),
-              ],
-            ),
-          );
-        },
-        onDismissed: (direction) {
-          _firebaseService.deleteTransaction(transaction.id);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Transaction deleted'),
-              backgroundColor: AppTheme.green,
-            ),
-          );
-        },
-        child: ListTile(
-          leading: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha:0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: color),
-          ),
-          title: Text(
-            transaction.description,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(transaction.category),
-              if (transaction.source != null)
-                Text(
-                  'Source: ${transaction.source}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-            ],
-          ),
-          trailing: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${isIncome ? '+' : '-'}${CurrencyFormatter.format(transaction.amount)}',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                  fontSize: 16,
-                ),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      confirmDismiss: (direction) async {
+        return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Delete Transaction'),
+            content: const Text('Are you sure you want to delete this transaction?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: AppTheme.red),
+                child: const Text('Delete'),
               ),
             ],
           ),
-          onLongPress: () => _deleteTransaction(transaction),
+        );
+      },
+      onDismissed: (direction) {
+        _firebaseService.deleteTransaction(transaction.id);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Transaction deleted'),
+            backgroundColor: AppTheme.green,
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[300]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withValues(alpha: 0.1),
+              spreadRadius: 1,
+              blurRadius: 3,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                // Icon
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const SizedBox(width: 12),
+
+                // Transaction details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        transaction.description,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        transaction.category,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        '${transaction.date.day}/${transaction.date.month}/${transaction.date.year}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Amount Column
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${isExpense ? '-' : '+'}${CurrencyFormatter.format(transaction.amount)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: color,
+                      ),
+                    ),
+                    if (transaction.source != null)
+                      Text(
+                        transaction.source!,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+
+            // Savings Allocation Breakdown (if applicable)
+            if (transaction.hasSavingsAllocation) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.green.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppTheme.green.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.savings, size: 16, color: AppTheme.green),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Savings Allocation',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildAllocationRow(
+                            'Saved',
+                            transaction.savingsAllocation!,
+                            AppTheme.green,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildAllocationRow(
+                            'Spent',
+                            transaction.actualExpenseAmount,
+                            AppTheme.red,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (transaction.savingsGoalName != null) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.flag, size: 12, color: Colors.grey[600]),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              'Goal: ${transaction.savingsGoalName}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[600],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildAllocationRow(String label, double amount, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          CurrencyFormatter.format(amount),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 

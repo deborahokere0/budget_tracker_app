@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/firebase_service.dart';
 import '../../models/transaction_model.dart';
+import '../../models/rule_model.dart';
 import '../../theme/app_theme.dart';
 
 class AddTransactionScreen extends StatefulWidget {
@@ -11,7 +12,7 @@ class AddTransactionScreen extends StatefulWidget {
   const AddTransactionScreen({
     super.key,
     required this.onTransactionAdded,
-    required this.initialTransactionType,
+    this.initialTransactionType,
   });
 
   @override
@@ -23,12 +24,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _sourceController = TextEditingController();
+  final _savingsAmountController = TextEditingController();
   final FirebaseService _firebaseService = FirebaseService();
 
   String _transactionType = 'expense';
-  String _selectedCategory = 'Food'; // Default for expense
+  String _selectedCategory = 'Food';
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
+  bool _saveToSavings = false;
+  String? _selectedSavingsRule;
+  List<RuleModel> _savingsRules = [];
 
   final List<String> _expenseCategories = [
     'Food',
@@ -60,8 +65,19 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (widget.initialTransactionType != null) {
       _transactionType = widget.initialTransactionType!;
     }
-    // Ensure selected category is valid for current type
     _selectedCategory = _currentCategories.first;
+    _loadSavingsRules();
+  }
+
+  Future<void> _loadSavingsRules() async {
+    try {
+      final rules = await _firebaseService.getRules().first;
+      setState(() {
+        _savingsRules = rules.where((r) => r.type == 'savings' && r.isActive).toList();
+      });
+    } catch (e) {
+      print('Error loading savings rules: $e');
+    }
   }
 
   Future<void> _selectDate() async {
@@ -73,15 +89,46 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
 
     if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-      });
+      setState(() => _selectedDate = picked);
     }
   }
 
   Future<void> _saveTransaction() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
+    if (!_formKey.currentState!.validate()) return;
+
+    // Validate savings amount if enabled
+    if (_saveToSavings) {
+      if (_selectedSavingsRule == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select a savings goal'),
+            backgroundColor: AppTheme.red,
+          ),
+        );
+        return;
+      }
+      if (_savingsAmountController.text.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter savings amount'),
+            backgroundColor: AppTheme.red,
+          ),
+        );
+        return;
+      }
+
+      final savingsAmount = double.tryParse(_savingsAmountController.text);
+      final totalAmount = double.tryParse(_amountController.text);
+
+      if (savingsAmount != null && totalAmount != null && savingsAmount > totalAmount) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Savings amount cannot exceed total amount'),
+            backgroundColor: AppTheme.red,
+          ),
+        );
+        return;
+      }
     }
 
     setState(() => _isLoading = true);
@@ -93,6 +140,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           ? _sourceController.text.trim()
           : null;
 
+      // Get savings details if enabled
+      double? savingsAllocation;
+      String? savingsGoalId;
+      String? savingsGoalName;
+
+      if (_saveToSavings && _selectedSavingsRule != null) {
+        savingsAllocation = double.parse(_savingsAmountController.text);
+        final selectedRule = _savingsRules.firstWhere((r) => r.id == _selectedSavingsRule);
+        savingsGoalId = selectedRule.id;
+        savingsGoalName = selectedRule.isPiggyBank == true
+            ? 'Piggybank'
+            : (selectedRule.goalName ?? 'Savings');
+      }
+
+      // Create single transaction with savings allocation
       final transaction = TransactionModel(
         id: '',
         userId: _firebaseService.currentUserId!,
@@ -102,27 +164,24 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         description: description,
         date: _selectedDate,
         source: source,
+        savingsAllocation: savingsAllocation,
+        savingsGoalId: savingsGoalId,
+        savingsGoalName: savingsGoalName,
       );
 
-      final transactionId = await _firebaseService.addTransaction(transaction);
+      await _firebaseService.addTransaction(transaction);
 
-      if (transactionId.isNotEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Transaction added successfully!',
-                style: TextStyle(color: Colors.white),
-              ),
-              backgroundColor: AppTheme.green,
-            ),
-          );
-
-          widget.onTransactionAdded();
-          Navigator.pop(context);
-        }
-      } else {
-        throw Exception('Failed to add transaction');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_saveToSavings
+                ? 'Transaction added with ₦${savingsAllocation!.toStringAsFixed(0)} saved!'
+                : 'Transaction added successfully!'),
+            backgroundColor: AppTheme.green,
+          ),
+        );
+        widget.onTransactionAdded();
+        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
@@ -145,6 +204,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     _amountController.dispose();
     _descriptionController.dispose();
     _sourceController.dispose();
+    _savingsAmountController.dispose();
     super.dispose();
   }
 
@@ -177,8 +237,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         onTap: () {
                           setState(() {
                             _transactionType = 'income';
-                            // Reset to first category when switching types
                             _selectedCategory = _incomeCategories.first;
+                            _saveToSavings = false;
                           });
                         },
                         child: Container(
@@ -207,7 +267,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         onTap: () {
                           setState(() {
                             _transactionType = 'expense';
-                            // Reset to first category when switching types
                             _selectedCategory = _expenseCategories.first;
                           });
                         },
@@ -266,7 +325,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
               const SizedBox(height: 16),
 
-              // Category Dropdown - Fixed to always have valid value
+              // Category Dropdown
               DropdownButtonFormField<String>(
                 initialValue: _selectedCategory,
                 decoration: InputDecoration(
@@ -349,6 +408,95 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     ),
                   ),
                 ),
+
+              // Save to Savings Section (Expense Only)
+              if (_transactionType == 'expense' && _savingsRules.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.green.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.green.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.savings, color: AppTheme.green),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Save to Savings Goal',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          Switch(
+                            value: _saveToSavings,
+                            activeThumbColor: AppTheme.green,
+                            onChanged: (value) {
+                              setState(() => _saveToSavings = value);
+                            },
+                          ),
+                        ],
+                      ),
+                      if (_saveToSavings) ...[
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          initialValue: _selectedSavingsRule,
+                          decoration: InputDecoration(
+                            labelText: 'Select Savings Goal',
+                            prefixIcon: const Icon(Icons.flag),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          items: _savingsRules.map((rule) {
+                            final label = rule.isPiggyBank == true
+                                ? '🐷 Piggybank'
+                                : '${rule.goalName} (${rule.savingsProgress.toStringAsFixed(0)}%)';
+                            return DropdownMenuItem(
+                              value: rule.id,
+                              child: Text(label),
+                            );
+                          }).toList(),
+                          onChanged: (value) {
+                            setState(() => _selectedSavingsRule = value);
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _savingsAmountController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                          ],
+                          decoration: InputDecoration(
+                            labelText: 'Amount to Save (₦)',
+                            prefixIcon: const Icon(Icons.attach_money),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            helperText: 'Part of the total amount above',
+                            helperStyle: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 32),
 

@@ -9,11 +9,11 @@ class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-// Get current user
+  // Get current user
   User? get currentUser => _auth.currentUser;
   String? get currentUserId => _auth.currentUser?.uid;
 
-// Authentication
+  // Authentication
   Future<User?> signUp(String email, String password, String fullName,
       String username, String incomeType, double monthlyIncome) async {
     try {
@@ -45,7 +45,6 @@ class FirebaseService {
       return user;
     } on FirebaseAuthException catch (e) {
       print('Firebase Auth Error: ${e.code} - ${e.message}');
-      // Re-throw with user-friendly message
       switch (e.code) {
         case 'email-already-in-use':
           throw Exception('This email is already registered');
@@ -79,7 +78,6 @@ class FirebaseService {
       return result.user;
     } on FirebaseAuthException catch (e) {
       print('Firebase Auth Error: ${e.code} - ${e.message}');
-      // Provide specific error messages
       switch (e.code) {
         case 'user-not-found':
           throw Exception('No account found with this email');
@@ -99,7 +97,7 @@ class FirebaseService {
     } catch (e) {
       print('Error signing in: $e');
       if (e is Exception) {
-        rethrow; // Re-throw our custom exceptions
+        rethrow;
       }
       throw Exception('An unexpected error occurred during login');
     }
@@ -135,13 +133,20 @@ class FirebaseService {
       String id = docRef.id;
       await docRef.update({'id': id});
 
-      // Update budget spent amount if expense
+      // Update budget spent amount if expense (use actual expense amount)
       if (transaction.type == 'expense') {
-        await _updateBudgetSpent(transaction.category, transaction.amount);
+        await _updateBudgetSpent(transaction.category, transaction.actualExpenseAmount);
       }
 
-      // Check and apply rules
-      await _applyRules(transaction);
+      // Update savings goal progress if has savings allocation
+      if (transaction.hasSavingsAllocation && transaction.savingsGoalId != null) {
+        await updateSavingsProgress(transaction.savingsGoalId!, transaction.savingsAllocation!);
+      }
+
+      // Check and apply allocation rules (for income)
+      if (transaction.type == 'income') {
+        await _applyAllocationRules(transaction);
+      }
 
       return id;
     } catch (e) {
@@ -307,12 +312,13 @@ class FirebaseService {
     }
   }
 
-  Future<void> _applyRules(TransactionModel transaction) async {
+  Future<void> _applyAllocationRules(TransactionModel transaction) async {
     try {
       QuerySnapshot snapshot = await _firestore
           .collection('rules')
           .doc(currentUserId)
           .collection('userRules')
+          .where('type', isEqualTo: 'allocation')
           .where('isActive', isEqualTo: true)
           .orderBy('priority', descending: true)
           .get();
@@ -322,10 +328,28 @@ class FirebaseService {
           .toList();
 
       for (RuleModel rule in rules) {
-        bool conditionsMet = _checkRuleConditions(rule, transaction);
+        final minAmount = rule.conditions['minAmount'] as num? ?? 0;
 
-        if (conditionsMet) {
-          await _executeRuleActions(rule, transaction);
+        if (transaction.amount >= minAmount) {
+          final allocatePercent = rule.actions['allocateToSavings'] as num? ?? 0;
+          final savingsAmount = transaction.amount * (allocatePercent / 100);
+
+          // Create expense transaction with savings allocation
+          TransactionModel allocationTransaction = TransactionModel(
+            id: '',
+            userId: currentUserId!,
+            type: 'expense',
+            category: 'Savings',
+            amount: savingsAmount,
+            description: 'Auto-allocated from ${transaction.description}',
+            date: DateTime.now(),
+            savingsAllocation: savingsAmount,
+            savingsGoalId: rule.id,
+            savingsGoalName: 'Auto-Allocation',
+          );
+
+          await addTransaction(allocationTransaction);
+
           await _firestore
               .collection('rules')
               .doc(currentUserId)
@@ -335,45 +359,7 @@ class FirebaseService {
         }
       }
     } catch (e) {
-      print('Error applying rules: $e');
-    }
-  }
-
-  bool _checkRuleConditions(RuleModel rule, TransactionModel transaction) {
-    if (rule.conditions['transactionType'] != null &&
-        rule.conditions['transactionType'] != transaction.type) {
-      return false;
-    }
-
-    if (rule.conditions['minAmount'] != null &&
-        transaction.amount < rule.conditions['minAmount']) {
-      return false;
-    }
-
-    if (rule.conditions['category'] != null &&
-        rule.conditions['category'] != transaction.category) {
-      return false;
-    }
-
-    return true;
-  }
-
-  Future<void> _executeRuleActions(RuleModel rule, TransactionModel transaction) async {
-    if (rule.type == 'allocation' && rule.actions['allocateToSavings'] != null) {
-      double savingsPercent = rule.actions['allocateToSavings'].toDouble();
-      double savingsAmount = transaction.amount * (savingsPercent / 100);
-
-      TransactionModel savings = TransactionModel(
-        id: '',
-        userId: currentUserId!,
-        type: 'expense',
-        category: 'Savings',
-        amount: savingsAmount,
-        description: 'Auto-allocated from ${transaction.description}',
-        date: DateTime.now(),
-      );
-
-      await addTransaction(savings);
+      print('Error applying allocation rules: $e');
     }
   }
 
@@ -384,6 +370,7 @@ class FirebaseService {
         return {
           'totalIncome': 0.0,
           'totalExpenses': 0.0,
+          'totalSavings': 0.0,
           'netAmount': 0.0,
           'weeklyIncome': 0.0,
           'weeklyExpenses': 0.0,
@@ -394,6 +381,7 @@ class FirebaseService {
 
       double totalIncome = 0;
       double totalExpenses = 0;
+      double totalSavings = 0;
       double weeklyIncome = 0;
       double weeklyExpenses = 0;
       double salaryIncome = 0;
@@ -415,7 +403,6 @@ class FirebaseService {
         if (transaction.type == 'income') {
           totalIncome += transaction.amount;
 
-          // Categorize by source for hybrid earners
           if (transaction.source?.toLowerCase() == 'salary' ||
               transaction.category.toLowerCase() == 'salary') {
             salaryIncome += transaction.amount;
@@ -426,10 +413,17 @@ class FirebaseService {
           if (transaction.date.isAfter(weekStart)) {
             weeklyIncome += transaction.amount;
           }
-        } else {
-          totalExpenses += transaction.amount;
+        } else if (transaction.type == 'expense') {
+          // Add actual expense amount (excluding savings)
+          totalExpenses += transaction.actualExpenseAmount;
+
+          // Track total savings from allocations
+          if (transaction.hasSavingsAllocation) {
+            totalSavings += transaction.savingsAllocation!;
+          }
+
           if (transaction.date.isAfter(weekStart)) {
-            weeklyExpenses += transaction.amount;
+            weeklyExpenses += transaction.actualExpenseAmount;
           }
         }
       }
@@ -437,6 +431,7 @@ class FirebaseService {
       return {
         'totalIncome': totalIncome,
         'totalExpenses': totalExpenses,
+        'totalSavings': totalSavings,
         'netAmount': totalIncome - totalExpenses,
         'weeklyIncome': weeklyIncome,
         'weeklyExpenses': weeklyExpenses,
@@ -448,6 +443,7 @@ class FirebaseService {
       return {
         'totalIncome': 0.0,
         'totalExpenses': 0.0,
+        'totalSavings': 0.0,
         'netAmount': 0.0,
         'weeklyIncome': 0.0,
         'weeklyExpenses': 0.0,
@@ -484,7 +480,13 @@ class FirebaseService {
         final transaction = TransactionModel.fromMap(doc.data()!);
 
         if (transaction.type == 'expense') {
-          await _updateBudgetSpent(transaction.category, -transaction.amount);
+          // Reverse budget spent with actual expense amount
+          await _updateBudgetSpent(transaction.category, -transaction.actualExpenseAmount);
+
+          // Reverse savings progress if has allocation
+          if (transaction.hasSavingsAllocation && transaction.savingsGoalId != null) {
+            await updateSavingsProgress(transaction.savingsGoalId!, -transaction.savingsAllocation!);
+          }
         }
 
         await doc.reference.delete();
@@ -544,34 +546,46 @@ class FirebaseService {
   Stream<Map<String, double>> getCategorySpending(String userId) {
     return _firestore
         .collection('transactions')
-        .where('userId', isEqualTo: userId)
+        .doc(userId)
+        .collection('userTransactions')
         .where('type', isEqualTo: 'expense')
         .snapshots()
         .map((snapshot) {
       final Map<String, double> categoryTotals = {};
 
       for (var doc in snapshot.docs) {
-        final data = doc.data();
-        final category = data['category'] as String? ?? 'Other';
-        final amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
+        final transaction = TransactionModel.fromMap(doc.data());
+        final category = transaction.category;
 
-        categoryTotals[category] = (categoryTotals[category] ?? 0.0) + amount;
+        // Use actual expense amount (excluding savings allocation)
+        categoryTotals[category] = (categoryTotals[category] ?? 0.0) + transaction.actualExpenseAmount;
       }
 
       return categoryTotals;
     });
   }
 
-// Update savings rule progress
+  // Update savings rule progress
   Future<void> updateSavingsProgress(String ruleId, double amountToAdd) async {
     try {
-      final ruleDoc = await _firestore.collection('rules').doc(ruleId).get();
+      final ruleDoc = await _firestore
+          .collection('rules')
+          .doc(currentUserId)
+          .collection('userRules')
+          .doc(ruleId)
+          .get();
+
       if (!ruleDoc.exists) return;
 
       final rule = RuleModel.fromMap(ruleDoc.data()!);
       final newAmount = (rule.currentAmount ?? 0.0) + amountToAdd;
 
-      await _firestore.collection('rules').doc(ruleId).update({
+      await _firestore
+          .collection('rules')
+          .doc(currentUserId)
+          .collection('userRules')
+          .doc(ruleId)
+          .update({
         'currentAmount': newAmount,
       });
     } catch (e) {
@@ -580,57 +594,21 @@ class FirebaseService {
     }
   }
 
-// Create savings transaction
-  Future<void> createSavingsTransaction({
-    required String userId,
-    required String ruleId,
-    required double amount,
-    required String goalName,
-    bool isPiggyBank = false,
-  }) async {
-    try {
-      final transaction = TransactionModel(
-        id: '',
-        userId: userId,
-        type: 'savings',
-        category: isPiggyBank ? 'Piggybank' : goalName,
-        amount: amount,
-        description: isPiggyBank
-            ? 'Piggybank savings'
-            : 'Savings for $goalName',
-        date: DateTime.now(),
-        paymentMethod: 'transfer',
-        tags: ['savings', if (isPiggyBank) 'piggybank'],
-        metadata: {
-          'ruleId': ruleId,
-          'isPiggyBank': isPiggyBank,
-        },
-      );
-
-      await addTransaction(transaction);
-
-      // Update rule progress if not piggybank
-      if (!isPiggyBank) {
-        await updateSavingsProgress(ruleId, amount);
-      }
-    } catch (e) {
-      print('Error creating savings transaction: $e');
-      rethrow;
-    }
-  }
-
-// Get total savings amount
+  // Get total savings amount
   Future<double> getTotalSavings(String userId) async {
     try {
       final snapshot = await _firestore
           .collection('transactions')
-          .where('userId', isEqualTo: userId)
-          .where('type', isEqualTo: 'savings')
+          .doc(userId)
+          .collection('userTransactions')
           .get();
 
       double total = 0.0;
       for (var doc in snapshot.docs) {
-        total += (doc.data()['amount'] as num?)?.toDouble() ?? 0.0;
+        final transaction = TransactionModel.fromMap(doc.data());
+        if (transaction.hasSavingsAllocation) {
+          total += transaction.savingsAllocation!;
+        }
       }
 
       return total;
@@ -640,67 +618,29 @@ class FirebaseService {
     }
   }
 
-// Get savings by category/goal
+  // Get savings by category/goal
   Future<Map<String, double>> getSavingsByGoal(String userId) async {
     try {
       final snapshot = await _firestore
           .collection('transactions')
-          .where('userId', isEqualTo: userId)
-          .where('type', isEqualTo: 'savings')
+          .doc(userId)
+          .collection('userTransactions')
           .get();
 
       final Map<String, double> goalTotals = {};
 
       for (var doc in snapshot.docs) {
-        final data = doc.data();
-        final category = data['category'] as String? ?? 'Unknown';
-        final amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
-
-        goalTotals[category] = (goalTotals[category] ?? 0.0) + amount;
+        final transaction = TransactionModel.fromMap(doc.data());
+        if (transaction.hasSavingsAllocation && transaction.savingsGoalName != null) {
+          final goalName = transaction.savingsGoalName!;
+          goalTotals[goalName] = (goalTotals[goalName] ?? 0.0) + transaction.savingsAllocation!;
+        }
       }
 
       return goalTotals;
     } catch (e) {
       print('Error getting savings by goal: $e');
       return {};
-    }
-  }
-
-// Check and trigger allocation rules
-  Future<void> checkAllocationRules(String userId, double incomeAmount) async {
-    try {
-      final rulesSnapshot = await _firestore
-          .collection('rules')
-          .where('userId', isEqualTo: userId)
-          .where('type', isEqualTo: 'allocation')
-          .where('isActive', isEqualTo: true)
-          .get();
-
-      for (var doc in rulesSnapshot.docs) {
-        final rule = RuleModel.fromMap(doc.data());
-        final minAmount = rule.conditions['minAmount'] as num? ?? 0;
-
-        if (incomeAmount >= minAmount) {
-          final allocatePercent = rule.actions['allocateToSavings'] as num? ?? 0;
-          final savingsAmount = incomeAmount * (allocatePercent / 100);
-
-          // Create automatic savings transaction
-          await createSavingsTransaction(
-            userId: userId,
-            ruleId: rule.id,
-            amount: savingsAmount,
-            goalName: 'Auto-Allocation',
-            isPiggyBank: true, // Auto-allocation goes to piggybank
-          );
-
-          // Update last triggered
-          await _firestore.collection('rules').doc(rule.id).update({
-            'lastTriggered': DateTime.now().toIso8601String(),
-          });
-        }
-      }
-    } catch (e) {
-      print('Error checking allocation rules: $e');
     }
   }
 }
