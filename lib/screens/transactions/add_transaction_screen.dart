@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/firebase_service.dart';
+import '../../services/alert_service.dart';
+import '../../services/notification_service.dart';
 import '../../models/transaction_model.dart';
 import '../../models/rule_model.dart';
 import '../../theme/app_theme.dart';
@@ -154,7 +156,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             : (selectedRule.goalName ?? 'Savings');
       }
 
-      // Create single transaction with savings allocation
+      // Create transaction
       final transaction = TransactionModel(
         id: '',
         userId: _firebaseService.currentUserId!,
@@ -169,7 +171,39 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         savingsGoalName: savingsGoalName,
       );
 
-      await _firebaseService.addTransaction(transaction);
+      print('Saving transaction: ${transaction.description} (${transaction.category})');
+
+      // Save transaction - alert check now happens inside addTransaction
+      final transactionId = await _firebaseService.addTransaction(transaction);
+
+      if (transactionId.isEmpty) {
+        throw Exception('Failed to save transaction');
+      }
+
+      print('Transaction saved with ID: $transactionId');
+
+      // Update transaction with generated ID
+      final savedTransaction = transaction.copyWith(id: transactionId);
+
+      // Process allocation rules for income transactions
+      if (savedTransaction.type == 'income') {
+        try {
+          await _processAllocationRules(savedTransaction);
+        } catch (e) {
+          print('Error processing allocation rules: $e');
+          // Continue even if allocation fails
+        }
+      }
+
+      // Process savings rules for expense transactions
+      if (savedTransaction.type == 'expense' && savedTransaction.hasSavingsAllocation) {
+        try {
+          await _processSavingsRules(savedTransaction);
+        } catch (e) {
+          print('Error processing savings rules: $e');
+          // Continue even if savings processing fails
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -184,6 +218,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         Navigator.pop(context);
       }
     } catch (e) {
+      print('ERROR saving transaction: $e');
+      print('Stack trace: ${StackTrace.current}');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -196,6 +233,104 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _processAllocationRules(TransactionModel transaction) async {
+    try {
+      // Get all active allocation rules
+      final rules = await _firebaseService.getRules().first;
+      final allocationRules = rules.where((r) =>
+      r.type == 'allocation' &&
+          r.isActive
+      ).toList();
+
+      // Sort by priority (highest first)
+      allocationRules.sort((a, b) => b.priority.compareTo(a.priority));
+
+      for (var rule in allocationRules) {
+        final minAmount = (rule.conditions['minAmount'] as num?)?.toDouble() ?? 0.0;
+
+        // Check if transaction meets minimum amount
+        if (transaction.amount >= minAmount) {
+          final percentage = (rule.actions['allocateToSavings'] as num?)?.toDouble() ?? 0.0;
+          final allocatedAmount = (transaction.amount * percentage) / 100;
+
+          // Create savings transaction
+          await _createSavingsAllocation(
+            transaction,
+            allocatedAmount,
+            percentage,
+            rule,
+          );
+
+          // Send notification
+          await NotificationService.sendAllocationNotification(
+            ruleName: rule.name,
+            amount: allocatedAmount,
+            percentage: percentage,
+          );
+
+          // Update rule lastTriggered
+          await _firebaseService.updateRule(
+            rule.copyWith(lastTriggered: DateTime.now()),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error processing allocation rules: $e');
+    }
+  }
+
+  Future<void> _createSavingsAllocation(
+      TransactionModel incomeTransaction,
+      double allocatedAmount,
+      double percentage,
+      RuleModel rule,
+      ) async {
+    // Create a savings transaction record
+    final savingsTransaction = TransactionModel(
+      id: '',
+      userId: incomeTransaction.userId,
+      amount: allocatedAmount,
+      type: 'savings_allocation',
+      category: 'Savings',
+      description: 'Auto-allocation from ${incomeTransaction.description} (${percentage.toStringAsFixed(0)}%)',
+      date: DateTime.now(),
+      source: rule.name,
+    );
+
+    await _firebaseService.addTransaction(savingsTransaction);
+  }
+
+  Future<void> _processSavingsRules(TransactionModel transaction) async {
+    try {
+      // Get all active savings rules for this category
+      final rules = await _firebaseService.getRules().first;
+      final savingsRules = rules.where((r) =>
+      r.type == 'savings' &&
+          r.isActive &&
+          r.conditions['category'] == transaction.category
+      ).toList();
+
+      for (var rule in savingsRules) {
+        // Update current amount for the goal
+        final newAmount = (rule.currentAmount ?? 0.0) +
+            (transaction.savingsAllocation ?? 0.0);
+
+        final updatedRule = rule.copyWith(
+          currentAmount: newAmount,
+          lastTriggered: DateTime.now(),
+        );
+
+        await _firebaseService.updateRule(updatedRule);
+
+        // Check if milestone reached
+        final alertService = AlertService(_firebaseService.currentUserId!);
+        await alertService.checkSavingsGoalProgress(updatedRule);
+      }
+    } catch (e) {
+      print('Error processing savings rules: $e');
     }
   }
 

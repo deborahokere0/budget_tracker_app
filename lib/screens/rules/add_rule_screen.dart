@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../services/firebase_service.dart';
 import '../../models/rule_model.dart';
 import '../../models/user_model.dart';
@@ -574,6 +575,9 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
             TextFormField(
               controller: _amountController,
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+              ],
               decoration: const InputDecoration(
                 labelText: 'Alert Threshold',
                 prefixText: '₦ ',
@@ -581,7 +585,11 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {
-                  return 'Please enter a threshold amount';
+                  return 'Please enter an amount';
+                }
+                final amount = double.tryParse(value);
+                if (amount == null || amount <= 0) {
+                  return 'Please enter a valid amount';
                 }
                 return null;
               },

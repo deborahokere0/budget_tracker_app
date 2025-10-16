@@ -5,7 +5,7 @@ import '../../services/firebase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/currency_formatter.dart';
 import '../transactions/add_transaction_screen.dart';
-import '../widgets/alert_banner.dart';
+import '../widgets/enhanced_alert_banner.dart';
 
 class VariableEarnerDashboard extends StatelessWidget {
   final UserModel user;
@@ -103,7 +103,7 @@ class VariableEarnerDashboard extends StatelessWidget {
                                     ),
                                   ),
                                   Text(
-                                    'Jun 23 - Jun 29',
+                                    'Oct 13 - Oct 19',
                                     style: TextStyle(
                                       color: Colors.white70,
                                       fontSize: 12,
@@ -213,7 +213,7 @@ class VariableEarnerDashboard extends StatelessWidget {
                   ),
 
                   // Alert Banners
-                  AlertBannersContainer(userId: user.uid),
+                  EnhancedAlertBannersContainer(userId: user.uid),
 
                   // White content area
                   Container(

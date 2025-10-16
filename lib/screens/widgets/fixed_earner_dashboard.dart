@@ -5,7 +5,7 @@ import '../../services/firebase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/currency_formatter.dart';
 import '../transactions/add_transaction_screen.dart';
-import '../widgets/alert_banner.dart';
+import '../widgets/enhanced_alert_banner.dart';
 
 class FixedEarnerDashboard extends StatelessWidget {
   final UserModel user;
@@ -146,7 +146,7 @@ class FixedEarnerDashboard extends StatelessWidget {
                     ),
                   ),
 
-                  AlertBannersContainer(userId: user.uid),
+                  EnhancedAlertBannersContainer(userId: user.uid),
 
                   // White content area
                   Container(

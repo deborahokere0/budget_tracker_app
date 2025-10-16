@@ -8,17 +8,73 @@ import 'screens/auth/signup_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/rules/rules_screen.dart';
 import 'theme/app_theme.dart';
+import 'services/notification_service.dart';
+import 'services/alert_service.dart';
+import 'services/firebase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Initialize Notification Service
+  await NotificationService.initialize();
+
   runApp(const BudgetTrackerApp());
 }
 
-class BudgetTrackerApp extends StatelessWidget {
+class BudgetTrackerApp extends StatefulWidget {
   const BudgetTrackerApp({super.key});
+
+  @override
+  State<BudgetTrackerApp> createState() => _BudgetTrackerAppState();
+}
+
+class _BudgetTrackerAppState extends State<BudgetTrackerApp>
+    with WidgetsBindingObserver {
+  final FirebaseService _firebaseService = FirebaseService();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _setupPeriodicAlertCheck();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // Check alerts when app comes to foreground
+    if (state == AppLifecycleState.resumed) {
+      _checkAlertsOnResume();
+    }
+  }
+
+  // Setup periodic alert checking (every 30 minutes when app is active)
+  void _setupPeriodicAlertCheck() {
+    Future.delayed(const Duration(minutes: 30), () {
+      if (mounted) {
+        _checkAlertsOnResume();
+        _setupPeriodicAlertCheck(); // Reschedule
+      }
+    });
+  }
+
+  Future<void> _checkAlertsOnResume() async {
+    final userId = _firebaseService.currentUserId;
+    if (userId != null) {
+      final alertService = AlertService(userId);
+      await alertService.checkAndTriggerAlerts();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,7 +82,6 @@ class BudgetTrackerApp extends StatelessWidget {
       title: "Dee's Budget App",
       theme: AppTheme.lightTheme,
       debugShowCheckedModeBanner: false,
-      // Define named routes
       routes: {
         '/': (context) => _buildAuthGate(),
         '/login': (context) => const LoginScreen(),
@@ -34,12 +89,10 @@ class BudgetTrackerApp extends StatelessWidget {
         '/home': (context) => const HomeScreen(),
         '/rules': (context) => const RulesScreen(),
       },
-      // Set initial route
       initialRoute: '/',
     );
   }
 
-  // Auth Gate - determines which screen to show based on auth state
   Widget _buildAuthGate() {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),

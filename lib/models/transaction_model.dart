@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class TransactionModel {
   final String id;
   final String userId;
@@ -42,7 +44,7 @@ class TransactionModel {
       'category': category,
       'amount': amount,
       'description': description,
-      'date': date.toIso8601String(),
+      'date': Timestamp.fromDate(date),
       'source': source,
       'paymentMethod': paymentMethod,
       'tags': tags,
@@ -55,6 +57,12 @@ class TransactionModel {
 
   // Create from Firestore Map
   factory TransactionModel.fromMap(Map<String, dynamic> map) {
+    DateTime parseDate(dynamic dateValue) {
+      if (dateValue == null) return DateTime.now();
+      if (dateValue is Timestamp) return dateValue.toDate();
+      if (dateValue is String) return DateTime.parse(dateValue);
+      return DateTime.now();
+    }
     return TransactionModel(
       id: map['id'] ?? '',
       userId: map['userId'] ?? '',
@@ -62,7 +70,7 @@ class TransactionModel {
       category: map['category'] ?? '',
       amount: (map['amount'] ?? 0).toDouble(),
       description: map['description'] ?? '',
-      date: map['date'] != null ? DateTime.parse(map['date']) : DateTime.now(),
+      date: parseDate(map['date']),
       source: map['source'],
       paymentMethod: map['paymentMethod'],
       tags: map['tags'] != null ? List<String>.from(map['tags']) : null,
@@ -70,6 +78,41 @@ class TransactionModel {
       savingsAllocation: map['savingsAllocation']?.toDouble(),
       savingsGoalId: map['savingsGoalId'],
       savingsGoalName: map['savingsGoalName'],
+    );
+  }
+
+  // CopyWith method for creating modified copies
+  TransactionModel copyWith({
+    String? id,
+    String? userId,
+    String? type,
+    String? category,
+    double? amount,
+    String? description,
+    DateTime? date,
+    String? source,
+    String? paymentMethod,
+    List<String>? tags,
+    Map<String, dynamic>? metadata,
+    double? savingsAllocation,
+    String? savingsGoalId,
+    String? savingsGoalName,
+  }) {
+    return TransactionModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      type: type ?? this.type,
+      category: category ?? this.category,
+      amount: amount ?? this.amount,
+      description: description ?? this.description,
+      date: date ?? this.date,
+      source: source ?? this.source,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      tags: tags ?? this.tags,
+      metadata: metadata ?? this.metadata,
+      savingsAllocation: savingsAllocation ?? this.savingsAllocation,
+      savingsGoalId: savingsGoalId ?? this.savingsGoalId,
+      savingsGoalName: savingsGoalName ?? this.savingsGoalName,
     );
   }
 

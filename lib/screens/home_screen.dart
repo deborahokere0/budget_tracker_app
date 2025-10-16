@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../services/firebase_service.dart';
+import '../services/alert_service.dart';
 import '../models/user_model.dart';
 import '../theme/app_theme.dart';
 import 'widgets/fixed_earner_dashboard.dart';
 import 'widgets/variable_earner_dashboard.dart';
 import 'widgets/hybrid_earner_dashboard.dart';
+import 'widgets/enhanced_alert_banner.dart';
 import 'transactions/add_transaction_screen.dart';
 import 'rules/rules_screen.dart';
 import 'transactions/transactions_list_screen.dart';
@@ -40,6 +42,12 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       await _loadUserProfile();
       await _loadDashboardStats();
+
+      // Check alerts after loading data
+      if (_currentUser != null) {
+        final alertService = AlertService(_currentUser!.uid);
+        await alertService.checkAndTriggerAlerts();
+      }
     } catch (e) {
       setState(() {
         _errorMessage = 'Failed to load data: $e';
@@ -92,7 +100,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (confirm == true) {
       await _firebaseService.signOut();
       if (mounted) {
-        // Navigate back to auth screen - adjust route as needed
         Navigator.of(context).pushReplacementNamed('/login');
       }
     }
@@ -105,7 +112,6 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (_) => const ProfileScreen(),
       ),
     );
-    // Reload user data after returning from profile
     _loadUserProfile();
   }
 
@@ -158,6 +164,14 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    // Wrap dashboard with global alert overlay
+    return GlobalAlertOverlay(
+      userId: _currentUser!.uid,
+      child: _buildDashboardByType(),
+    );
+  }
+
+  Widget _buildDashboardByType() {
     switch (_currentUser!.incomeType) {
       case 'fixed':
         return FixedEarnerDashboard(
@@ -187,8 +201,19 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final List<Widget> pages = [
       _buildDashboard(),
-      const TransactionsListScreen(),
-      const RulesScreen(),
+      // Wrap other pages with alerts too
+      _currentUser != null
+          ? GlobalAlertOverlay(
+        userId: _currentUser!.uid,
+        child: const TransactionsListScreen(),
+      )
+          : const TransactionsListScreen(),
+      _currentUser != null
+          ? GlobalAlertOverlay(
+        userId: _currentUser!.uid,
+        child: const RulesScreen(),
+      )
+          : const RulesScreen(),
     ];
 
     return Scaffold(
@@ -198,7 +223,6 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          // Profile Icon
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
@@ -222,7 +246,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-          // Sign Out Icon
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
             onPressed: _handleSignOut,
@@ -264,7 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
             MaterialPageRoute(
               builder: (_) => AddTransactionScreen(
                 onTransactionAdded: _loadDashboardStats,
-                initialTransactionType: 'expense', // Default to expense
+                initialTransactionType: 'expense',
               ),
             ),
           );
