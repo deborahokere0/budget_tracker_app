@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/currency_formatter.dart';
 import '../transactions/add_transaction_screen.dart';
 import '../widgets/enhanced_alert_banner.dart';
+import 'budget_tracker_screen.dart';
 
 class VariableEarnerDashboard extends StatelessWidget {
   final UserModel user;
@@ -244,7 +245,14 @@ class VariableEarnerDashboard extends StatelessWidget {
                                 ),
                               ),
                               TextButton(
-                                onPressed: () {},
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const BudgetTrackerScreen(),
+                                    ),
+                                  );
+                                },
                                 child: const Text('See All >'),
                               ),
                             ],

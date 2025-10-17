@@ -9,11 +9,13 @@ import '../../constants/category_constants.dart';
 class AddRuleScreen extends StatefulWidget {
   final String ruleType;
   final RuleModel? existingRule;
+  final String? prefilledCategory;
 
   const AddRuleScreen({
     super.key,
     required this.ruleType,
     this.existingRule,
+    this.prefilledCategory,
   });
 
   @override
@@ -45,9 +47,13 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
       _calculateTotalAllocation();
     }
 
-    // Pre-fill if editing
+    // Pre-fill if editing OR if category is prefilled
     if (widget.existingRule != null) {
       _prefillExistingRule();
+    } else if (widget.prefilledCategory != null) {
+      // ADD THIS BLOCK
+      _selectedCategory = widget.prefilledCategory!;
+      _nameController.text = '${widget.prefilledCategory} Budget Alert';
     }
   }
 

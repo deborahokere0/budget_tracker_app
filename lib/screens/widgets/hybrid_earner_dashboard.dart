@@ -5,6 +5,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/currency_formatter.dart';
 import '../transactions/add_transaction_screen.dart';
 import '../widgets/enhanced_alert_banner.dart';
+import 'budget_tracker_screen.dart';
 
 class HybridEarnerDashboard extends StatelessWidget {
   final UserModel user;
@@ -213,6 +214,23 @@ class HybridEarnerDashboard extends StatelessWidget {
                                 ),
                               ),
                             ],
+                          ),
+
+                          // After the budget cards Row
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const BudgetTrackerScreen(),
+                                  ),
+                                );
+                              },
+                              child: const Text('See All Budgets >'),
+                            ),
                           ),
 
                           const SizedBox(height: 20),
