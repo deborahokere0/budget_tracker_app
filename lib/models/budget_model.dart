@@ -7,6 +7,8 @@ class BudgetModel {
   String period; // 'weekly' or 'monthly'
   DateTime startDate;
   DateTime endDate;
+  String? linkedAlertRuleId; // Track which alert rule created this budget
+  bool isAutoCreated; // Track if created automatically from alert
 
   BudgetModel({
     required this.id,
@@ -17,6 +19,8 @@ class BudgetModel {
     required this.period,
     required this.startDate,
     required this.endDate,
+    this.linkedAlertRuleId,
+    this.isAutoCreated = false,
   });
 
   double get remaining => amount - spent;
@@ -32,6 +36,8 @@ class BudgetModel {
       'period': period,
       'startDate': startDate.toIso8601String(),
       'endDate': endDate.toIso8601String(),
+      'linkedAlertRuleId': linkedAlertRuleId,
+      'isAutoCreated': isAutoCreated,
     };
   }
 
@@ -45,6 +51,8 @@ class BudgetModel {
       period: map['period'] ?? 'monthly',
       startDate: DateTime.parse(map['startDate'] ?? DateTime.now().toIso8601String()),
       endDate: DateTime.parse(map['endDate'] ?? DateTime.now().toIso8601String()),
+      linkedAlertRuleId: map['linkedAlertRuleId'],
+      isAutoCreated: map['isAutoCreated'] ?? false,
     );
   }
 }

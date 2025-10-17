@@ -127,10 +127,20 @@ class FirebaseService {
 
   Future<void> updateUserProfile(UserModel user) async {
     try {
+      // Get old user profile to check if income type changed
+      final oldUser = await getUserProfile(user.uid);
+      final incomeTypeChanged = oldUser?.incomeType != user.incomeType;
+
+      // Update profile
       await _firestore
           .collection('users')
           .doc(user.uid)
           .update(user.toMap());
+      // If income type changed, recalculate all budgets
+      if (incomeTypeChanged) {
+        print('Income type changed from ${oldUser?.incomeType} to ${user.incomeType}');
+        await recalculateBudgetsForIncomeType(user.incomeType);
+      }
     } catch (e) {
       print('Error updating user profile: $e');
       rethrow;
@@ -291,6 +301,212 @@ class FirebaseService {
     }
   }
 
+  // ========== BUDGET-ALERT SYNC ==========
+
+  /// Sync budget with alert rule - create or update budget based on alert threshold
+  Future<void> syncBudgetWithAlert(RuleModel alertRule, UserModel user) async {
+    try {
+      if (alertRule.type != 'alert') return;
+
+      final category = alertRule.conditions['category'] as String?;
+      final threshold = (alertRule.conditions['threshold'] as num?)?.toDouble() ?? 0.0;
+
+      if (category == null || threshold <= 0) return;
+
+      // Calculate budget amount based on income type
+      double budgetAmount = threshold;
+      String period = 'monthly';
+
+      // Convert to weekly for variable/hybrid earners
+      if (user.incomeType == 'variable' || user.incomeType == 'hybrid') {
+        budgetAmount = threshold / 4; // Monthly threshold ÷ 4 = weekly budget
+        period = 'weekly';
+      }
+
+      // Check if budget already exists for this category
+      final existingBudgets = await _firestore
+          .collection('budgets')
+          .doc(currentUserId)
+          .collection('userBudgets')
+          .where('category', isEqualTo: category)
+          .limit(1)
+          .get();
+
+      DateTime now = DateTime.now();
+      DateTime endDate = period == 'weekly'
+          ? now.add(const Duration(days: 7))
+          : DateTime(now.year, now.month + 1, 0);
+
+      if (existingBudgets.docs.isNotEmpty) {
+        // Update existing budget
+        final doc = existingBudgets.docs.first;
+        final existingBudget = BudgetModel.fromMap(doc.data());
+
+        final updatedBudget = BudgetModel(
+          id: existingBudget.id,
+          userId: existingBudget.userId,
+          category: category,
+          amount: budgetAmount,
+          spent: existingBudget.spent,
+          period: period,
+          startDate: existingBudget.startDate,
+          endDate: endDate,
+          linkedAlertRuleId: alertRule.id,
+          isAutoCreated: true,
+        );
+
+        await updateBudget(updatedBudget);
+        print('Updated budget for $category: $budgetAmount');
+      } else {
+        // Create new budget
+        final newBudget = BudgetModel(
+          id: '',
+          userId: currentUserId!,
+          category: category,
+          amount: budgetAmount,
+          spent: 0,
+          period: period,
+          startDate: now,
+          endDate: endDate,
+          linkedAlertRuleId: alertRule.id,
+          isAutoCreated: true,
+        );
+
+        await addBudget(newBudget);
+        print('Created new budget for $category: $budgetAmount');
+      }
+    } catch (e) {
+      print('Error syncing budget with alert: $e');
+    }
+  }
+
+  /// Reset budget when alert is deleted
+  Future<void> resetBudgetFromAlert(String alertRuleId) async {
+    try {
+      final budgets = await _firestore
+          .collection('budgets')
+          .doc(currentUserId)
+          .collection('userBudgets')
+          .where('linkedAlertRuleId', isEqualTo: alertRuleId)
+          .get();
+
+      for (var doc in budgets.docs) {
+        final budget = BudgetModel.fromMap(doc.data());
+
+        // Reset to 0 but keep the budget tracker
+        final resetBudget = BudgetModel(
+          id: budget.id,
+          userId: budget.userId,
+          category: budget.category,
+          amount: 0,
+          spent: budget.spent,
+          period: budget.period,
+          startDate: budget.startDate,
+          endDate: budget.endDate,
+          linkedAlertRuleId: null,
+          isAutoCreated: false,
+        );
+
+        await updateBudget(resetBudget);
+        print('Reset budget for ${budget.category} to 0');
+      }
+    } catch (e) {
+      print('Error resetting budget from alert: $e');
+    }
+  }
+
+  /// Recalculate all alert-linked budgets when income type changes
+  Future<void> recalculateBudgetsForIncomeType(String newIncomeType) async {
+    try {
+      if (currentUserId == null) return;
+
+      // Get user profile
+      final user = await getUserProfile(currentUserId!);
+      if (user == null) return;
+
+      // Get all active alert rules
+      final alertRules = await _firestore
+          .collection('rules')
+          .doc(currentUserId)
+          .collection('userRules')
+          .where('type', isEqualTo: 'alert')
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      // Get all budgets
+      final budgets = await _firestore
+          .collection('budgets')
+          .doc(currentUserId)
+          .collection('userBudgets')
+          .get();
+
+      // Create a map of alert rules by category
+      Map<String, RuleModel> alertsByCategory = {};
+      for (var doc in alertRules.docs) {
+        final rule = RuleModel.fromMap(doc.data());
+        final category = rule.conditions['category'] as String?;
+        if (category != null) {
+          alertsByCategory[category] = rule;
+        }
+      }
+
+      // Update each budget
+      for (var doc in budgets.docs) {
+        final budget = BudgetModel.fromMap(doc.data());
+
+        // Check if this budget has a linked alert rule
+        if (budget.linkedAlertRuleId != null && alertsByCategory.containsKey(budget.category)) {
+          final alertRule = alertsByCategory[budget.category]!;
+
+          // Recalculate with new income type
+          await syncBudgetWithAlert(alertRule, user);
+          print('Recalculated budget for ${budget.category}');
+        } else {
+          // For non-linked budgets, just update the period
+          final newPeriod = (newIncomeType == 'variable' || newIncomeType == 'hybrid')
+              ? 'weekly'
+              : 'monthly';
+
+          if (budget.period != newPeriod) {
+            double newAmount = budget.amount;
+
+            // Convert amount based on period change
+            if (newPeriod == 'weekly' && budget.period == 'monthly') {
+              newAmount = budget.amount / 4;
+            } else if (newPeriod == 'monthly' && budget.period == 'weekly') {
+              newAmount = budget.amount * 4;
+            }
+
+            DateTime now = DateTime.now();
+            DateTime newEndDate = newPeriod == 'weekly'
+                ? now.add(const Duration(days: 7))
+                : DateTime(now.year, now.month + 1, 0);
+
+            final updatedBudget = BudgetModel(
+              id: budget.id,
+              userId: budget.userId,
+              category: budget.category,
+              amount: newAmount,
+              spent: budget.spent,
+              period: newPeriod,
+              startDate: now,
+              endDate: newEndDate,
+              linkedAlertRuleId: budget.linkedAlertRuleId,
+              isAutoCreated: budget.isAutoCreated,
+            );
+
+            await updateBudget(updatedBudget);
+            print('Updated budget period for ${budget.category}: $newPeriod');
+          }
+        }
+      }
+
+      print('Successfully recalculated all budgets for income type: $newIncomeType');
+    } catch (e) {
+      print('Error recalculating budgets for income type: $e');
+    }
+  }
+
   // ========== RULES ==========
 
   Future<void> addRule(RuleModel rule) async {
@@ -310,6 +526,13 @@ class FirebaseService {
           'lastMilestone': 0.0,
           'timestamp': DateTime.now().toIso8601String(),
         });
+      }
+      // SYNC BUDGET IF ALERT RULE - ADD THIS
+      if (rule.type == 'alert' && currentUserId != null) {
+        final user = await getUserProfile(currentUserId!);
+        if (user != null) {
+          await syncBudgetWithAlert(rule, user);
+        }
       }
     } catch (e) {
       print('Error adding rule: $e');
@@ -348,6 +571,14 @@ class FirebaseService {
         final alertService = AlertService(currentUserId!);
         await alertService.checkSavingsGoalProgress(rule);
       }
+
+      // SYNC BUDGET IF ALERT RULE - ADD THIS
+      if (rule.type == 'alert' && currentUserId != null) {
+        final user = await getUserProfile(currentUserId!);
+        if (user != null) {
+          await syncBudgetWithAlert(rule, user);
+        }
+      }
     } catch (e) {
       print('Error updating rule: $e');
       rethrow;
@@ -356,6 +587,24 @@ class FirebaseService {
 
   Future<void> deleteRule(String ruleId) async {
     try {
+      // Get the rule first to check its type
+      final ruleDoc = await _firestore
+          .collection('rules')
+          .doc(currentUserId)
+          .collection('userRules')
+          .doc(ruleId)
+          .get();
+
+      if (ruleDoc.exists) {
+        final rule = RuleModel.fromMap(ruleDoc.data()!);
+
+        // Reset budget if it's an alert rule
+        if (rule.type == 'alert') {
+          await resetBudgetFromAlert(ruleId);
+        }
+      }
+
+      // Delete the rule
       await _firestore
           .collection('rules')
           .doc(currentUserId)

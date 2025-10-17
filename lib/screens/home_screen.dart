@@ -167,6 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Wrap dashboard with global alert overlay
     return GlobalAlertOverlay(
       userId: _currentUser!.uid,
+      dashboardType: _currentUser!.incomeType,
       child: _buildDashboardByType(),
     );
   }
@@ -205,12 +206,14 @@ class _HomeScreenState extends State<HomeScreen> {
       _currentUser != null
           ? GlobalAlertOverlay(
         userId: _currentUser!.uid,
+        dashboardType: _currentUser!.incomeType,
         child: const TransactionsListScreen(),
       )
           : const TransactionsListScreen(),
       _currentUser != null
           ? GlobalAlertOverlay(
         userId: _currentUser!.uid,
+        dashboardType: _currentUser!.incomeType,
         child: const RulesScreen(),
       )
           : const RulesScreen(),

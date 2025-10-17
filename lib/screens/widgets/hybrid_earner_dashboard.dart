@@ -174,7 +174,10 @@ class HybridEarnerDashboard extends StatelessWidget {
                     ),
                   ),
 
-                  EnhancedAlertBannersContainer(userId: user.uid),
+                  EnhancedAlertBannersContainer(
+                    userId: user.uid,
+                    dashboardType: 'hybrid',
+                  ),
 
                   // Content Area
                   Container(

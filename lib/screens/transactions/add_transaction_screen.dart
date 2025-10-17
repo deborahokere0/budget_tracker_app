@@ -6,6 +6,7 @@ import '../../services/notification_service.dart';
 import '../../models/transaction_model.dart';
 import '../../models/rule_model.dart';
 import '../../theme/app_theme.dart';
+import '../../constants/category_constants.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final VoidCallback onTransactionAdded;
@@ -30,36 +31,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   final FirebaseService _firebaseService = FirebaseService();
 
   String _transactionType = 'expense';
-  String _selectedCategory = 'Food';
+  String _selectedCategory = CategoryConstants.expenseCategories.first;
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
   bool _saveToSavings = false;
   String? _selectedSavingsRule;
   List<RuleModel> _savingsRules = [];
 
-  final List<String> _expenseCategories = [
-    'Food',
-    'Transport',
-    'Data',
-    'Entertainment',
-    'Utilities',
-    'Healthcare',
-    'Education',
-    'Shopping',
-    'Other',
-  ];
-
-  final List<String> _incomeCategories = [
-    'Salary',
-    'Freelance',
-    'Gig Work',
-    'Investment',
-    'Gift',
-    'Other',
-  ];
-
   List<String> get _currentCategories =>
-      _transactionType == 'income' ? _incomeCategories : _expenseCategories;
+      _transactionType == 'income'
+          ? CategoryConstants.incomeCategories
+          : CategoryConstants.expenseCategories;
 
   @override
   void initState() {
@@ -372,7 +354,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         onTap: () {
                           setState(() {
                             _transactionType = 'income';
-                            _selectedCategory = _incomeCategories.first;
+                            _selectedCategory = CategoryConstants.incomeCategories.first;
                             _saveToSavings = false;
                           });
                         },
@@ -402,7 +384,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         onTap: () {
                           setState(() {
                             _transactionType = 'expense';
-                            _selectedCategory = _expenseCategories.first;
+                            _selectedCategory = CategoryConstants.expenseCategories.first;
                           });
                         },
                         child: Container(
@@ -465,7 +447,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 initialValue: _selectedCategory,
                 decoration: InputDecoration(
                   labelText: 'Category',
-                  prefixIcon: const Icon(Icons.category),
+                  prefixIcon: Icon(CategoryConstants.getIcon(_selectedCategory)),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -473,7 +455,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 items: _currentCategories.map((category) {
                   return DropdownMenuItem(
                     value: category,
-                    child: Text(category),
+                    child: Row(
+                      children: [
+                        Icon(
+                          CategoryConstants.getIcon(category),
+                          size: 20,
+                          color: CategoryConstants.getColor(category),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(category),
+                      ],
+                    ),
                   );
                 }).toList(),
                 onChanged: (value) {

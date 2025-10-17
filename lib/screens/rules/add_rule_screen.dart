@@ -4,6 +4,7 @@ import '../../services/firebase_service.dart';
 import '../../models/rule_model.dart';
 import '../../models/user_model.dart';
 import '../../theme/app_theme.dart';
+import '../../constants/category_constants.dart';
 
 class AddRuleScreen extends StatefulWidget {
   final String ruleType;
@@ -27,7 +28,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
   final _targetAmountController = TextEditingController();
   final FirebaseService _firebaseService = FirebaseService();
 
-  String _selectedCategory = 'Food';
+  String _selectedCategory = CategoryConstants.expenseCategories.first;
   double _allocationPercent = 10.0;
   int _priority = 1;
   bool _isActive = true;
@@ -35,11 +36,6 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
   bool _isPiggyBank = false;
   UserModel? _currentUser;
   double _totalAllocationPercent = 0.0;
-
-  final List<String> _categories = [
-    'Food', 'Transport', 'Data', 'Entertainment',
-    'Utilities', 'Savings', 'Emergency', 'Other'
-  ];
 
   @override
   void initState() {
@@ -67,7 +63,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         _allocationPercent = rule.actions['allocateToSavings']?.toDouble() ?? 10.0;
         break;
       case 'savings':
-        _selectedCategory = rule.conditions['category'] ?? 'Food';
+        _selectedCategory = rule.conditions['category'] ?? CategoryConstants.expenseCategories.first;
         _isPiggyBank = rule.isPiggyBank ?? false;
         if (!_isPiggyBank) {
           _goalNameController.text = rule.goalName ?? '';
@@ -75,7 +71,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         }
         break;
       case 'alert':
-        _selectedCategory = rule.conditions['category'] ?? 'Food';
+        _selectedCategory = rule.conditions['category'] ?? CategoryConstants.expenseCategories.first;
         _amountController.text = rule.conditions['threshold']?.toString() ?? '';
         break;
     }
@@ -406,42 +402,6 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
                   border: Border.all(color: Colors.grey[300]!),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                // child: Row(
-                //   children: [
-                //     Expanded(
-                //       child: Column(
-                //         crossAxisAlignment: CrossAxisAlignment.start,
-                //         children: [
-                //           const Text(
-                //             'Monthly Salary',
-                //             style: TextStyle(
-                //               fontSize: 12,
-                //               color: Colors.grey,
-                //             ),
-                //           ),
-                //           const SizedBox(height: 4),
-                //           Text(
-                //             '₦${_currentUser?.monthlyIncome?.toStringAsFixed(0) ?? "0"}',
-                //             style: const TextStyle(
-                //               fontSize: 20,
-                //               fontWeight: FontWeight.bold,
-                //             ),
-                //           ),
-                //         ],
-                //       ),
-                //     ),
-                //     // IconButton(
-                //     //   icon: const Icon(Icons.edit, color: AppTheme.primaryBlue),
-                //     //   onPressed: () async {
-                //     //     await Navigator.push(
-                //     //       context,
-                //     //       MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                //     //     );
-                //     //     _loadUserProfile();
-                //     //   },
-                //     // ),
-                //   ],
-                // ),
               )
             else
               TextFormField(
@@ -534,15 +494,25 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
             ],
 
             DropdownButtonFormField<String>(
-              initialValue:_selectedCategory,
-              decoration: const InputDecoration(
+              initialValue: _selectedCategory,
+              decoration: InputDecoration(
                 labelText: 'Category to Save From',
-                prefixIcon: Icon(Icons.category),
+                prefixIcon: Icon(CategoryConstants.getIcon(_selectedCategory)),
               ),
-              items: _categories
+              items: CategoryConstants.expenseCategories
                   .map((category) => DropdownMenuItem(
                 value: category,
-                child: Text(category),
+                child: Row(
+                  children: [
+                    Icon(
+                      CategoryConstants.getIcon(category),
+                      size: 20,
+                      color: CategoryConstants.getColor(category),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(category),
+                  ],
+                ),
               ))
                   .toList(),
               onChanged: (value) {
@@ -556,32 +526,70 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         return Column(
           children: [
             DropdownButtonFormField<String>(
-              initialValue:_selectedCategory,
-              decoration: const InputDecoration(
+              initialValue: _selectedCategory,
+              decoration: InputDecoration(
                 labelText: 'Category',
-                prefixIcon: Icon(Icons.category),
+                prefixIcon: Icon(CategoryConstants.getIcon(_selectedCategory)),
               ),
-              items: _categories
+              items: CategoryConstants.expenseCategories
                   .map((category) => DropdownMenuItem(
                 value: category,
-                child: Text(category),
+                child: Row(
+                  children: [
+                    Icon(
+                      CategoryConstants.getIcon(category),
+                      size: 20,
+                      color: CategoryConstants.getColor(category),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(category),
+                  ],
+                ),
               ))
                   .toList(),
               onChanged: (value) {
                 setState(() => _selectedCategory = value!);
               },
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 20, color: AppTheme.primaryBlue),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _currentUser?.incomeType == 'variable' || _currentUser?.incomeType == 'hybrid'
+                          ? 'Budget will be set to threshold ÷ 4 for weekly tracking'
+                          : 'Budget will be set to this threshold amount',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.primaryBlue,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _amountController,
               keyboardType: TextInputType.number,
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
               ],
-              decoration: const InputDecoration(
-                labelText: 'Alert Threshold',
+              decoration: InputDecoration(
+                labelText: 'Alert Threshold (Monthly)',
                 prefixText: '₦ ',
                 hintText: 'Alert when spending exceeds',
+                helperText: _currentUser?.incomeType == 'variable' || _currentUser?.incomeType == 'hybrid'
+                    ? 'Weekly budget will be calculated automatically'
+                    : null,
               ),
               validator: (value) {
                 if (value == null || value.isEmpty) {

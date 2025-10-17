@@ -146,7 +146,10 @@ class FixedEarnerDashboard extends StatelessWidget {
                     ),
                   ),
 
-                  EnhancedAlertBannersContainer(userId: user.uid),
+                  EnhancedAlertBannersContainer(
+                    userId: user.uid,
+                    dashboardType: 'fixed',
+                  ),
 
                   // White content area
                   Container(

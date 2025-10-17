@@ -35,7 +35,6 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
     super.initState();
     _checkIfDismissed();
 
-    // Setup animations
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -56,6 +55,15 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
   }
 
   @override
+  void didUpdateWidget(EnhancedAlertBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Re-check dismissal status if alert rule changed
+    if (oldWidget.alertRule.id != widget.alertRule.id) {
+      _checkIfDismissed();
+    }
+  }
+
+  @override
   void dispose() {
     _animationController.dispose();
     super.dispose();
@@ -69,7 +77,12 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
     if (dismissedUntil != null) {
       final dismissTime = DateTime.parse(dismissedUntil);
       if (DateTime.now().isBefore(dismissTime)) {
-        setState(() => _isDismissed = true);
+        if (mounted) {
+          setState(() => _isDismissed = true);
+        }
+      } else {
+        // Clean up expired dismissal
+        await prefs.remove(dismissedKey);
       }
     }
   }
@@ -83,7 +96,9 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
     await prefs.setString(dismissedKey, dismissUntil.toIso8601String());
 
     await _animationController.reverse();
-    setState(() => _isDismissed = true);
+    if (mounted) {
+      setState(() => _isDismissed = true);
+    }
     widget.onDismiss?.call();
   }
 
@@ -140,7 +155,6 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    // Icon with pulse animation
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
@@ -154,8 +168,6 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                       ),
                     ),
                     const SizedBox(width: 12),
-
-                    // Alert details
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,9 +194,9 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                                   color: color,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: Text(
+                                child: const Text(
                                   'ALERT',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
@@ -220,8 +232,6 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                         ],
                       ),
                     ),
-
-                    // Dismiss button
                     IconButton(
                       icon: const Icon(Icons.close, size: 20),
                       onPressed: _dismiss,
@@ -268,7 +278,6 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                   ),
                 ),
                 const SizedBox(height: 20),
-
                 Row(
                   children: [
                     Icon(_getSeverityIcon(), color: _getSeverityColor(), size: 32),
@@ -284,36 +293,28 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 24),
-
                 _buildDetailCard(
                   'Current Spending',
                   CurrencyFormatter.format(widget.currentSpending),
                   Icons.shopping_cart,
                   _getSeverityColor(),
                 ),
-
                 const SizedBox(height: 12),
-
                 _buildDetailCard(
                   'Budget Threshold',
                   CurrencyFormatter.format(threshold),
                   Icons.flag,
                   AppTheme.primaryBlue,
                 ),
-
                 const SizedBox(height: 12),
-
                 _buildDetailCard(
                   'Amount Over Budget',
                   CurrencyFormatter.format(widget.exceeded),
                   Icons.trending_up,
                   AppTheme.red,
                 ),
-
                 const SizedBox(height: 24),
-
                 const Text(
                   'What to do:',
                   style: TextStyle(
@@ -321,24 +322,11 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 12),
-
-                _buildSuggestion(
-                  'Review your recent $category expenses',
-                  Icons.search,
-                ),
-                _buildSuggestion(
-                  'Consider adjusting your budget or spending habits',
-                  Icons.edit,
-                ),
-                _buildSuggestion(
-                  'Set up a savings rule to prevent overspending',
-                  Icons.savings,
-                ),
-
+                _buildSuggestion('Review your recent $category expenses', Icons.search),
+                _buildSuggestion('Consider adjusting your budget or spending habits', Icons.edit),
+                _buildSuggestion('Set up a savings rule to prevent overspending', Icons.savings),
                 const SizedBox(height: 24),
-
                 Row(
                   children: [
                     Expanded(
@@ -359,10 +347,7 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                     const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          // Navigate to rules screen to edit
-                        },
+                        onPressed: () => Navigator.pop(context),
                         icon: const Icon(Icons.edit),
                         label: const Text('Edit Rule'),
                         style: OutlinedButton.styleFrom(
@@ -396,21 +381,11 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
+                Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                 const SizedBox(height: 4),
                 Text(
                   value,
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color),
                 ),
               ],
             ),
@@ -428,28 +403,22 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
         children: [
           Icon(icon, size: 20, color: AppTheme.primaryBlue),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[700],
-              ),
-            ),
-          ),
+          Expanded(child: Text(text, style: TextStyle(fontSize: 14, color: Colors.grey[700]))),
         ],
       ),
     );
   }
 }
 
-// Enhanced container for all alerts
+// Enhanced container with key to force rebuild
 class EnhancedAlertBannersContainer extends StatelessWidget {
   final String userId;
+  final String? dashboardType; // Add to force refresh on type change
 
   const EnhancedAlertBannersContainer({
     super.key,
     required this.userId,
+    this.dashboardType,
   });
 
   @override
@@ -464,8 +433,6 @@ class EnhancedAlertBannersContainer extends StatelessWidget {
         }
 
         final triggeredAlerts = snapshot.data!;
-
-        // Sort by severity (highest exceeded amount first)
         triggeredAlerts.sort((a, b) {
           final exceededA = a['exceeded'] as double;
           final exceededB = b['exceeded'] as double;
@@ -473,8 +440,10 @@ class EnhancedAlertBannersContainer extends StatelessWidget {
         });
 
         return Column(
+          key: ValueKey('alerts_${userId}_${dashboardType}_${triggeredAlerts.length}'),
           children: triggeredAlerts.map((alertData) {
             return EnhancedAlertBanner(
+              key: ValueKey(alertData['rule'].id),
               alertRule: alertData['rule'] as RuleModel,
               currentSpending: alertData['currentSpending'] as double,
               exceeded: alertData['exceeded'] as double,
@@ -486,15 +455,16 @@ class EnhancedAlertBannersContainer extends StatelessWidget {
   }
 }
 
-// Global alert overlay that appears on all screens
 class GlobalAlertOverlay extends StatelessWidget {
   final String userId;
   final Widget child;
+  final String? dashboardType;
 
   const GlobalAlertOverlay({
     super.key,
     required this.userId,
     required this.child,
+    this.dashboardType,
   });
 
   @override
@@ -507,7 +477,10 @@ class GlobalAlertOverlay extends StatelessWidget {
           left: 0,
           right: 0,
           child: SafeArea(
-            child: EnhancedAlertBannersContainer(userId: userId),
+            child: EnhancedAlertBannersContainer(
+              userId: userId,
+              dashboardType: dashboardType,
+            ),
           ),
         ),
       ],

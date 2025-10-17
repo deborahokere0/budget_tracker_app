@@ -213,7 +213,10 @@ class VariableEarnerDashboard extends StatelessWidget {
                   ),
 
                   // Alert Banners
-                  EnhancedAlertBannersContainer(userId: user.uid),
+                  EnhancedAlertBannersContainer(
+                    userId: user.uid,
+                    dashboardType: 'variable',
+                  ),
 
                   // White content area
                   Container(
