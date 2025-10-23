@@ -308,41 +308,67 @@ class FixedEarnerDashboard extends StatelessWidget {
     });
   }
 
-  Widget _buildBudgetItem(BudgetModel budget) {
-    final percentSpent = budget.percentSpent.clamp(0, 100);
-    final isOverBudget = budget.spent > budget.amount;
+  Stream<Map<String, double>> _getActualSpendingStream() {
+    final now = DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return _firebaseService.getTransactions().map((transactions) {
+      final Map<String, double> categoryTotals = {};
+      for (var transaction in transactions) {
+        if (transaction.type == 'expense' &&
+            transaction.date.isAfter(startOfMonth)) {
+          categoryTotals[transaction.category] =
+              (categoryTotals[transaction.category] ?? 0) +
+                  transaction.actualExpenseAmount;
+        }
+      }
+      return categoryTotals;
+    });
+  }
+
+  Widget _buildBudgetItem(BudgetModel budget) {
+    return StreamBuilder<Map<String, double>>(
+      stream: _getActualSpendingStream(),
+      builder: (context, spendingSnapshot) {
+        final actualSpent = spendingSnapshot.data?[budget.category] ?? budget.spent;
+        final percentSpent = budget.amount > 0
+            ? ((actualSpent / budget.amount) * 100).clamp(0, 100)
+            : 0.0;
+        final isOverBudget = actualSpent > budget.amount;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                budget.category,
-                style: const TextStyle(fontWeight: FontWeight.w500),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    budget.category,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  Text(
+                    '${CurrencyFormatter.format(actualSpent)}/${CurrencyFormatter.format(budget.amount)}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isOverBudget ? AppTheme.red : Colors.grey[600],
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                '${CurrencyFormatter.format(budget.spent)}/${CurrencyFormatter.format(budget.amount)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isOverBudget ? AppTheme.red : Colors.grey[600],
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                value: percentSpent / 100,
+                backgroundColor: Colors.grey[200],
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  isOverBudget ? AppTheme.red : AppTheme.primaryBlue,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(
-            value: percentSpent / 100,
-            backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              isOverBudget ? AppTheme.red : AppTheme.primaryBlue,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

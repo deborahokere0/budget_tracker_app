@@ -42,7 +42,7 @@ class FirebaseService {
             .doc(user.uid)
             .set(userModel.toMap());
 
-        await _initializeDefaultBudgets(user.uid, incomeType);
+        // await _initializeDefaultBudgets(user.uid, incomeType);
       }
 
       return user;
@@ -171,9 +171,9 @@ class FirebaseService {
       }
 
       // Check and apply allocation rules (for income)
-      if (transaction.type == 'income') {
-        await _applyAllocationRules(transaction);
-      }
+      // if (transaction.type == 'income') {
+      //   await _applyAllocationRules(transaction);
+      // }
 
       // Check alerts immediately after expense transaction - WITH ERROR HANDLING
       if (transaction.type == 'expense' && currentUserId != null) {
@@ -301,29 +301,34 @@ class FirebaseService {
     }
   }
 
-  // ========== BUDGET-ALERT SYNC ==========
+  // ========== BUDGET-ALLOCATION SYNC ==========
 
-  /// Sync budget with alert rule - create or update budget based on alert threshold
-  Future<void> syncBudgetWithAlert(RuleModel alertRule, UserModel user) async {
+  Future<void> _createBudgetFromAllocation(RuleModel rule, UserModel user) async {
     try {
-      if (alertRule.type != 'alert') return;
+      final category = rule.conditions['category'] as String?;
+      final amountType = rule.conditions['amountType'] as String?;
+      final amountValue = (rule.conditions['amountValue'] as num?)?.toDouble() ?? 0.0;
 
-      final category = alertRule.conditions['category'] as String?;
-      final threshold = (alertRule.conditions['threshold'] as num?)?.toDouble() ?? 0.0;
+      if (category == null || amountValue <= 0) return;
 
-      if (category == null || threshold <= 0) return;
+      // Calculate budget amount
+      double budgetAmount = amountValue;
+      if (amountType == 'percentage') {
+        budgetAmount = (user.monthlyIncome ?? 0) * (amountValue / 100);
+      }
 
-      // Calculate budget amount based on income type
-      double budgetAmount = threshold;
       String period = 'monthly';
+      DateTime now = DateTime.now();
+      DateTime endDate = DateTime(now.year, now.month + 1, 0);
 
       // Convert to weekly for variable/hybrid earners
       if (user.incomeType == 'variable' || user.incomeType == 'hybrid') {
-        budgetAmount = threshold / 4; // Monthly threshold ÷ 4 = weekly budget
+        budgetAmount = budgetAmount / 4;
         period = 'weekly';
+        endDate = now.add(const Duration(days: 7));
       }
 
-      // Check if budget already exists for this category
+      // Check if budget exists
       final existingBudgets = await _firestore
           .collection('budgets')
           .doc(currentUserId)
@@ -332,31 +337,20 @@ class FirebaseService {
           .limit(1)
           .get();
 
-      DateTime now = DateTime.now();
-      DateTime endDate = period == 'weekly'
-          ? now.add(const Duration(days: 7))
-          : DateTime(now.year, now.month + 1, 0);
-
       if (existingBudgets.docs.isNotEmpty) {
         // Update existing budget
         final doc = existingBudgets.docs.first;
         final existingBudget = BudgetModel.fromMap(doc.data());
 
-        final updatedBudget = BudgetModel(
-          id: existingBudget.id,
-          userId: existingBudget.userId,
-          category: category,
+        final updatedBudget = existingBudget.copyWith(
           amount: budgetAmount,
-          spent: existingBudget.spent,
           period: period,
-          startDate: existingBudget.startDate,
           endDate: endDate,
-          linkedAlertRuleId: alertRule.id,
+          linkedAlertRuleId: rule.id,
           isAutoCreated: true,
         );
 
         await updateBudget(updatedBudget);
-        print('Updated budget for $category: $budgetAmount');
       } else {
         // Create new budget
         final newBudget = BudgetModel(
@@ -368,50 +362,40 @@ class FirebaseService {
           period: period,
           startDate: now,
           endDate: endDate,
-          linkedAlertRuleId: alertRule.id,
+          linkedAlertRuleId: rule.id,
           isAutoCreated: true,
         );
 
         await addBudget(newBudget);
-        print('Created new budget for $category: $budgetAmount');
       }
     } catch (e) {
-      print('Error syncing budget with alert: $e');
+      print('Error creating budget from allocation: $e');
     }
   }
 
-  /// Reset budget when alert is deleted
-  Future<void> resetBudgetFromAlert(String alertRuleId) async {
+  /// Reset budget if it's an allocation rule
+  Future<void> _resetBudgetFromAllocation(String allocationRuleId) async {
     try {
       final budgets = await _firestore
           .collection('budgets')
           .doc(currentUserId)
           .collection('userBudgets')
-          .where('linkedAlertRuleId', isEqualTo: alertRuleId)
+          .where('linkedAlertRuleId', isEqualTo: allocationRuleId)
           .get();
 
       for (var doc in budgets.docs) {
         final budget = BudgetModel.fromMap(doc.data());
 
-        // Reset to 0 but keep the budget tracker
-        final resetBudget = BudgetModel(
-          id: budget.id,
-          userId: budget.userId,
-          category: budget.category,
+        final resetBudget = budget.copyWith(
           amount: 0,
-          spent: budget.spent,
-          period: budget.period,
-          startDate: budget.startDate,
-          endDate: budget.endDate,
           linkedAlertRuleId: null,
           isAutoCreated: false,
         );
 
         await updateBudget(resetBudget);
-        print('Reset budget for ${budget.category} to 0');
       }
     } catch (e) {
-      print('Error resetting budget from alert: $e');
+      print('Error resetting budget from allocation: $e');
     }
   }
 
@@ -420,85 +404,22 @@ class FirebaseService {
     try {
       if (currentUserId == null) return;
 
-      // Get user profile
       final user = await getUserProfile(currentUserId!);
       if (user == null) return;
 
-      // Get all active alert rules
-      final alertRules = await _firestore
+      // Get all allocation rules
+      final allocationRules = await _firestore
           .collection('rules')
           .doc(currentUserId)
           .collection('userRules')
-          .where('type', isEqualTo: 'alert')
+          .where('type', isEqualTo: 'allocation')
           .where('isActive', isEqualTo: true)
           .get();
 
-      // Get all budgets
-      final budgets = await _firestore
-          .collection('budgets')
-          .doc(currentUserId)
-          .collection('userBudgets')
-          .get();
-
-      // Create a map of alert rules by category
-      Map<String, RuleModel> alertsByCategory = {};
-      for (var doc in alertRules.docs) {
+      // Recreate budgets from allocation rules
+      for (var doc in allocationRules.docs) {
         final rule = RuleModel.fromMap(doc.data());
-        final category = rule.conditions['category'] as String?;
-        if (category != null) {
-          alertsByCategory[category] = rule;
-        }
-      }
-
-      // Update each budget
-      for (var doc in budgets.docs) {
-        final budget = BudgetModel.fromMap(doc.data());
-
-        // Check if this budget has a linked alert rule
-        if (budget.linkedAlertRuleId != null && alertsByCategory.containsKey(budget.category)) {
-          final alertRule = alertsByCategory[budget.category]!;
-
-          // Recalculate with new income type
-          await syncBudgetWithAlert(alertRule, user);
-          print('Recalculated budget for ${budget.category}');
-        } else {
-          // For non-linked budgets, just update the period
-          final newPeriod = (newIncomeType == 'variable' || newIncomeType == 'hybrid')
-              ? 'weekly'
-              : 'monthly';
-
-          if (budget.period != newPeriod) {
-            double newAmount = budget.amount;
-
-            // Convert amount based on period change
-            if (newPeriod == 'weekly' && budget.period == 'monthly') {
-              newAmount = budget.amount / 4;
-            } else if (newPeriod == 'monthly' && budget.period == 'weekly') {
-              newAmount = budget.amount * 4;
-            }
-
-            DateTime now = DateTime.now();
-            DateTime newEndDate = newPeriod == 'weekly'
-                ? now.add(const Duration(days: 7))
-                : DateTime(now.year, now.month + 1, 0);
-
-            final updatedBudget = BudgetModel(
-              id: budget.id,
-              userId: budget.userId,
-              category: budget.category,
-              amount: newAmount,
-              spent: budget.spent,
-              period: newPeriod,
-              startDate: now,
-              endDate: newEndDate,
-              linkedAlertRuleId: budget.linkedAlertRuleId,
-              isAutoCreated: budget.isAutoCreated,
-            );
-
-            await updateBudget(updatedBudget);
-            print('Updated budget period for ${budget.category}: $newPeriod');
-          }
-        }
+        await _createBudgetFromAllocation(rule, user);
       }
 
       print('Successfully recalculated all budgets for income type: $newIncomeType');
@@ -527,11 +448,15 @@ class FirebaseService {
           'timestamp': DateTime.now().toIso8601String(),
         });
       }
-      // SYNC BUDGET IF ALERT RULE - ADD THIS
-      if (rule.type == 'alert' && currentUserId != null) {
+      // CREATE BUDGET IF AUTO-ALLOCATION RULE
+      if (rule.type == 'allocation' && currentUserId != null) {  // ✅ CORRECT!
+        print('DEBUG: Creating budget from allocation rule...');
         final user = await getUserProfile(currentUserId!);
         if (user != null) {
-          await syncBudgetWithAlert(rule, user);
+          await _createBudgetFromAllocation(rule, user);
+          print('DEBUG: Budget creation completed');
+        } else {
+          print('ERROR: User profile not found');
         }
       }
     } catch (e) {
@@ -572,11 +497,15 @@ class FirebaseService {
         await alertService.checkSavingsGoalProgress(rule);
       }
 
-      // SYNC BUDGET IF ALERT RULE - ADD THIS
-      if (rule.type == 'alert' && currentUserId != null) {
+      // UPDATE BUDGET IF AUTO-ALLOCATION RULE
+      if (rule.type == 'allocation' && currentUserId != null) {  // ✅ CORRECT!
+        print('DEBUG: Updating budget from allocation rule...');
         final user = await getUserProfile(currentUserId!);
         if (user != null) {
-          await syncBudgetWithAlert(rule, user);
+          await _createBudgetFromAllocation(rule, user);
+          print('DEBUG: Budget update completed');
+        } else {
+          print('ERROR: User profile not found');
         }
       }
     } catch (e) {
@@ -587,7 +516,6 @@ class FirebaseService {
 
   Future<void> deleteRule(String ruleId) async {
     try {
-      // Get the rule first to check its type
       final ruleDoc = await _firestore
           .collection('rules')
           .doc(currentUserId)
@@ -598,13 +526,12 @@ class FirebaseService {
       if (ruleDoc.exists) {
         final rule = RuleModel.fromMap(ruleDoc.data()!);
 
-        // Reset budget if it's an alert rule
-        if (rule.type == 'alert') {
-          await resetBudgetFromAlert(ruleId);
+        // Reset budget if it's an allocation rule
+        if (rule.type == 'allocation') {
+          await _resetBudgetFromAllocation(ruleId);
         }
       }
 
-      // Delete the rule
       await _firestore
           .collection('rules')
           .doc(currentUserId)
@@ -997,46 +924,46 @@ class FirebaseService {
 
   // ========== PRIVATE HELPER METHODS ==========
 
-  Future<void> _initializeDefaultBudgets(String uid, String incomeType) async {
-    List<Map<String, dynamic>> defaultCategories = [
-      {'name': 'Food', 'icon': '🍔', 'amount': 20000},
-      {'name': 'Transport', 'icon': '🚗', 'amount': 15000},
-      {'name': 'Data', 'icon': '💾', 'amount': 10000},
-      {'name': 'Entertainment', 'icon': '🎬', 'amount': 10000},
-      {'name': 'Utilities', 'icon': '💡', 'amount': 20000},
-    ];
-
-    String period = incomeType == 'variable' ? 'weekly' : 'monthly';
-    DateTime now = DateTime.now();
-    DateTime endDate = period == 'weekly'
-        ? now.add(const Duration(days: 7))
-        : DateTime(now.year, now.month + 1, 0);
-
-    WriteBatch batch = _firestore.batch();
-
-    for (var category in defaultCategories) {
-      BudgetModel budget = BudgetModel(
-        id: '',
-        userId: uid,
-        category: category['name'],
-        amount: category['amount'].toDouble(),
-        period: period,
-        startDate: now,
-        endDate: endDate,
-      );
-
-      DocumentReference docRef = _firestore
-          .collection('budgets')
-          .doc(uid)
-          .collection('userBudgets')
-          .doc();
-
-      budget.id = docRef.id;
-      batch.set(docRef, budget.toMap());
-    }
-
-    await batch.commit();
-  }
+  // Future<void> _initializeDefaultBudgets(String uid, String incomeType) async {
+  //   List<Map<String, dynamic>> defaultCategories = [
+  //     {'name': 'Food', 'icon': '🍔', 'amount': 20000},
+  //     {'name': 'Transport', 'icon': '🚗', 'amount': 15000},
+  //     {'name': 'Data', 'icon': '💾', 'amount': 10000},
+  //     {'name': 'Entertainment', 'icon': '🎬', 'amount': 10000},
+  //     {'name': 'Utilities', 'icon': '💡', 'amount': 20000},
+  //   ];
+  //
+  //   String period = incomeType == 'variable' ? 'weekly' : 'monthly';
+  //   DateTime now = DateTime.now();
+  //   DateTime endDate = period == 'weekly'
+  //       ? now.add(const Duration(days: 7))
+  //       : DateTime(now.year, now.month + 1, 0);
+  //
+  //   WriteBatch batch = _firestore.batch();
+  //
+  //   for (var category in defaultCategories) {
+  //     BudgetModel budget = BudgetModel(
+  //       id: '',
+  //       userId: uid,
+  //       category: category['name'],
+  //       amount: category['amount'].toDouble(),
+  //       period: period,
+  //       startDate: now,
+  //       endDate: endDate,
+  //     );
+  //
+  //     DocumentReference docRef = _firestore
+  //         .collection('budgets')
+  //         .doc(uid)
+  //         .collection('userBudgets')
+  //         .doc();
+  //
+  //     budget.id = docRef.id;
+  //     batch.set(docRef, budget.toMap());
+  //   }
+  //
+  //   await batch.commit();
+  // }
 
   Future<void> _updateBudgetSpent(String category, double amount) async {
     try {
@@ -1051,7 +978,7 @@ class FirebaseService {
       if (snapshot.docs.isNotEmpty) {
         DocumentSnapshot doc = snapshot.docs.first;
         BudgetModel budget = BudgetModel.fromMap(doc.data() as Map<String, dynamic>);
-        budget.spent += amount;
+        budget = budget.copyWith(spent: budget.spent + amount);
         await updateBudget(budget);
       }
     } catch (e) {
@@ -1059,61 +986,61 @@ class FirebaseService {
     }
   }
 
-  Future<void> _applyAllocationRules(TransactionModel transaction) async {
-    try {
-      QuerySnapshot snapshot = await _firestore
-          .collection('rules')
-          .doc(currentUserId)
-          .collection('userRules')
-          .where('type', isEqualTo: 'allocation')
-          .where('isActive', isEqualTo: true)
-          .orderBy('priority', descending: true)
-          .get();
-
-      List<RuleModel> rules = snapshot.docs
-          .map((doc) => RuleModel.fromMap(doc.data() as Map<String, dynamic>))
-          .toList();
-
-      for (RuleModel rule in rules) {
-        final minAmount = rule.conditions['minAmount'] as num? ?? 0;
-
-        if (transaction.amount >= minAmount) {
-          final allocatePercent = rule.actions['allocateToSavings'] as num? ?? 0;
-          final savingsAmount = transaction.amount * (allocatePercent / 100);
-
-          // Create expense transaction with savings allocation
-          TransactionModel allocationTransaction = TransactionModel(
-            id: '',
-            userId: currentUserId!,
-            type: 'expense',
-            category: 'Savings',
-            amount: savingsAmount,
-            description: 'Auto-allocated from ${transaction.description}',
-            date: DateTime.now(),
-            savingsAllocation: savingsAmount,
-            savingsGoalId: rule.id,
-            savingsGoalName: 'Auto-Allocation',
-          );
-
-          await addTransaction(allocationTransaction);
-
-          await _firestore
-              .collection('rules')
-              .doc(currentUserId)
-              .collection('userRules')
-              .doc(rule.id)
-              .update({'lastTriggered': DateTime.now().toIso8601String()});
-
-          // Send notification
-          await processAllocationWithNotification(
-            rule: rule,
-            incomeAmount: transaction.amount,
-            allocatedAmount: savingsAmount,
-          );
-        }
-      }
-    } catch (e) {
-      print('Error applying allocation rules: $e');
-    }
-  }
+//   Future<void> _applyAllocationRules(TransactionModel transaction) async {
+//     try {
+//       QuerySnapshot snapshot = await _firestore
+//           .collection('rules')
+//           .doc(currentUserId)
+//           .collection('userRules')
+//           .where('type', isEqualTo: 'allocation')
+//           .where('isActive', isEqualTo: true)
+//           .orderBy('priority', descending: true)
+//           .get();
+//
+//       List<RuleModel> rules = snapshot.docs
+//           .map((doc) => RuleModel.fromMap(doc.data() as Map<String, dynamic>))
+//           .toList();
+//
+//       for (RuleModel rule in rules) {
+//         final minAmount = rule.conditions['minAmount'] as num? ?? 0;
+//
+//         if (transaction.amount >= minAmount) {
+//           final allocatePercent = rule.actions['allocateToSavings'] as num? ?? 0;
+//           final savingsAmount = transaction.amount * (allocatePercent / 100);
+//
+//           // Create expense transaction with savings allocation
+//           TransactionModel allocationTransaction = TransactionModel(
+//             id: '',
+//             userId: currentUserId!,
+//             type: 'expense',
+//             category: 'Savings',
+//             amount: savingsAmount,
+//             description: 'Auto-allocated from ${transaction.description}',
+//             date: DateTime.now(),
+//             savingsAllocation: savingsAmount,
+//             savingsGoalId: rule.id,
+//             savingsGoalName: 'Auto-Allocation',
+//           );
+//
+//           await addTransaction(allocationTransaction);
+//
+//           await _firestore
+//               .collection('rules')
+//               .doc(currentUserId)
+//               .collection('userRules')
+//               .doc(rule.id)
+//               .update({'lastTriggered': DateTime.now().toIso8601String()});
+//
+//           // Send notification
+//           await processAllocationWithNotification(
+//             rule: rule,
+//             incomeAmount: transaction.amount,
+//             allocatedAmount: savingsAmount,
+//           );
+//         }
+//       }
+//     } catch (e) {
+//       print('Error applying allocation rules: $e');
+//     }
+//   }
 }

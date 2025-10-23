@@ -220,40 +220,39 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   Future<void> _processAllocationRules(TransactionModel transaction) async {
     try {
-      // Get all active allocation rules
       final rules = await _firebaseService.getRules().first;
       final allocationRules = rules.where((r) =>
-      r.type == 'allocation' &&
-          r.isActive
+      r.type == 'allocation' && r.isActive
       ).toList();
 
-      // Sort by priority (highest first)
       allocationRules.sort((a, b) => b.priority.compareTo(a.priority));
 
-      for (var rule in allocationRules) {
-        final minAmount = (rule.conditions['minAmount'] as num?)?.toDouble() ?? 0.0;
+      // Get user profile once
+      final user = await _firebaseService.getUserProfile(_firebaseService.currentUserId!);
+      final monthlyIncome = user?.monthlyIncome ?? 0.0;
 
-        // Check if transaction meets minimum amount
-        if (transaction.amount >= minAmount) {
-          final percentage = (rule.actions['allocateToSavings'] as num?)?.toDouble() ?? 0.0;
+      for (var rule in allocationRules) {
+        final amountType = rule.conditions['amountType'] as String? ?? 'amount';
+        final amountValue = (rule.conditions['amountValue'] as num?)?.toDouble() ?? 0.0;
+
+        double percentage = 0.0;
+        if (monthlyIncome > 0) {
+          if (amountType == 'percentage') {
+            percentage = amountValue;
+          } else if (amountType == 'amount') {
+            percentage = (amountValue / monthlyIncome) * 100;
+          }
+        }
+
+        if (percentage > 0) {
           final allocatedAmount = (transaction.amount * percentage) / 100;
 
-          // Create savings transaction
-          await _createSavingsAllocation(
-            transaction,
-            allocatedAmount,
-            percentage,
-            rule,
-          );
-
-          // Send notification
           await NotificationService.sendAllocationNotification(
             ruleName: rule.name,
             amount: allocatedAmount,
             percentage: percentage,
           );
 
-          // Update rule lastTriggered
           await _firebaseService.updateRule(
             rule.copyWith(lastTriggered: DateTime.now()),
           );
@@ -262,27 +261,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     } catch (e) {
       print('Error processing allocation rules: $e');
     }
-  }
-
-  Future<void> _createSavingsAllocation(
-      TransactionModel incomeTransaction,
-      double allocatedAmount,
-      double percentage,
-      RuleModel rule,
-      ) async {
-    // Create a savings transaction record
-    final savingsTransaction = TransactionModel(
-      id: '',
-      userId: incomeTransaction.userId,
-      amount: allocatedAmount,
-      type: 'savings_allocation',
-      category: 'Savings',
-      description: 'Auto-allocation from ${incomeTransaction.description} (${percentage.toStringAsFixed(0)}%)',
-      date: DateTime.now(),
-      source: rule.name,
-    );
-
-    await _firebaseService.addTransaction(savingsTransaction);
   }
 
   Future<void> _processSavingsRules(TransactionModel transaction) async {
@@ -314,6 +292,46 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     } catch (e) {
       print('Error processing savings rules: $e');
     }
+  }
+
+  Widget _buildPercentageChip(String label, double percentage) {
+    final totalAmount = double.tryParse(_amountController.text) ?? 0;
+    final savingsAmount = double.tryParse(_savingsAmountController.text) ?? 0;
+    final isSelected = totalAmount > 0 &&
+        savingsAmount > 0 &&
+        (savingsAmount / totalAmount - percentage).abs() < 0.01;
+
+    return ActionChip(
+      label: Text(label),
+      backgroundColor: isSelected
+          ? AppTheme.green
+          : AppTheme.green.withValues(alpha: 0.1),
+      side: BorderSide(
+        color: isSelected
+            ? AppTheme.green
+            : AppTheme.green.withValues(alpha: 0.3),
+      ),
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : AppTheme.green,
+        fontWeight: FontWeight.bold,
+        fontSize: 12,
+      ),
+      onPressed: () {
+        if (totalAmount > 0) {
+          final calculatedAmount = totalAmount * percentage;
+          setState(() {
+            _savingsAmountController.text = calculatedAmount.toStringAsFixed(2);
+          });
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please enter total amount first'),
+              backgroundColor: AppTheme.orange,
+            ),
+          );
+        }
+      },
+    );
   }
 
   @override
@@ -604,6 +622,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           inputFormatters: [
                             FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
                           ],
+                          onChanged: (value) {
+                            setState(() {}); // Trigger rebuild to update chip selection
+                          },
                           decoration: InputDecoration(
                             labelText: 'Amount to Save (₦)',
                             prefixIcon: const Icon(Icons.attach_money),
@@ -618,6 +639,31 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                               color: Colors.grey[600],
                             ),
                           ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter savings amount';
+                            }
+                            final savingsAmount = double.tryParse(value);
+                            if (savingsAmount == null || savingsAmount <= 0) {
+                              return 'Please enter a valid amount';
+                            }
+                            final totalAmount = double.tryParse(_amountController.text);
+                            if (totalAmount != null && savingsAmount > totalAmount) {
+                              return 'Cannot exceed ₦${totalAmount.toStringAsFixed(2)}';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _buildPercentageChip('25%', 0.25),
+                            _buildPercentageChip('50%', 0.50),
+                            _buildPercentageChip('75%', 0.75),
+                            _buildPercentageChip('100%', 1.0),
+                          ],
                         ),
                       ],
                     ],

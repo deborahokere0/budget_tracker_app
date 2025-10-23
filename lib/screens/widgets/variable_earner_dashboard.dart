@@ -549,6 +549,24 @@ class VariableEarnerDashboard extends StatelessWidget {
     });
   }
 
+  Stream<Map<String, double>> _getActualSpendingStream() {
+    final now = DateTime.now();
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+
+    return _firebaseService.getTransactions().map((transactions) {
+      final Map<String, double> categoryTotals = {};
+      for (var transaction in transactions) {
+        if (transaction.type == 'expense' &&
+            transaction.date.isAfter(weekStart)) {
+          categoryTotals[transaction.category] =
+              (categoryTotals[transaction.category] ?? 0) +
+                  transaction.actualExpenseAmount;
+        }
+      }
+      return categoryTotals;
+    });
+  }
+
   Widget _buildWeeklyBudgetCard(BudgetModel budget) {
     final isOverBudget = budget.spent > budget.amount;
     final icon = _getCategoryIcon(budget.category);
@@ -587,9 +605,19 @@ class VariableEarnerDashboard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            CurrencyFormatter.format(budget.amount),
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          StreamBuilder<Map<String, double>>(
+            stream: _getActualSpendingStream(),
+            builder: (context, snapshot) {
+              final actualSpent = snapshot.data?[budget.category] ?? budget.spent;
+              final isActuallyOverBudget = actualSpent > budget.amount;
+              return Text(
+                CurrencyFormatter.format(actualSpent),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isActuallyOverBudget ? AppTheme.red : Colors.grey[600],
+                ),
+              );
+            },
           ),
           const SizedBox(height: 4),
           Text(

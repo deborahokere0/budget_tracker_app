@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../models/user_model.dart';
+// import '../../models/user_model.dart';
 import '../../services/firebase_service.dart';
 import '../../models/rule_model.dart';
 import '../../theme/app_theme.dart';
@@ -289,9 +289,15 @@ class _RulesScreenState extends State<RulesScreen>
   String _getRuleDescription(RuleModel rule) {
     switch (rule.type) {
       case 'allocation':
-        double percent = rule.actions['allocateToSavings'] ?? 0;
-        double minAmount = rule.conditions['minAmount'] ?? 0;
-        return 'Allocate ${percent.toStringAsFixed(0)}% when income ≥ ${CurrencyFormatter.format(minAmount)}';
+        final category = rule.conditions['category'] as String? ?? 'Unknown';
+        final amountType = rule.conditions['amountType'] as String? ?? 'amount';
+        final amountValue = (rule.conditions['amountValue'] as num?)?.toDouble() ?? 0.0;
+
+        if (amountType == 'percentage') {
+          return 'Allocate ${amountValue.toStringAsFixed(0)}% of income to $category budget';
+        } else {
+          return 'Allocate ${CurrencyFormatter.format(amountValue)} to $category budget';
+        }
 
       case 'savings':
         if (rule.isPiggyBank == true) {
@@ -302,15 +308,56 @@ class _RulesScreenState extends State<RulesScreen>
         return 'Save ${CurrencyFormatter.format(target)} for $goalName';
 
       case 'alert':
-        double threshold = rule.conditions['threshold'] ?? 0;
-        String category = rule.conditions['category'] ?? 'All';
-        return 'Alert when $category spending exceeds ${CurrencyFormatter.format(threshold)}';
+        final category = rule.conditions['category'] as String? ?? 'Unknown';
+        final thresholdType = rule.conditions['thresholdType'] as String? ?? 'amount';
+        final thresholdValue = (rule.conditions['thresholdValue'] as num?)?.toDouble() ?? 0.0;
+
+        if (thresholdType == 'percentage') {
+          return 'Alert when $category spending exceeds ${thresholdValue.toStringAsFixed(0)}% of budget';
+        } else {
+          return 'Alert when $category spending exceeds ${CurrencyFormatter.format(thresholdValue)}';
+        }
 
       case 'boost':
         return 'AI-powered optimization rule';
 
       default:
         return 'Custom rule with ${rule.conditions.length} conditions';
+    }
+  }
+
+  Future<Map<String, dynamic>> _calculateAllocationSummary(List<RuleModel> allocationRules) async {
+    try {
+      final user = await _firebaseService.getUserProfile(_firebaseService.currentUserId!);
+      final monthlyIncome = user?.monthlyIncome ?? 0.0;
+
+      double totalAllocated = 0.0;
+
+      if (monthlyIncome > 0) {
+        for (var rule in allocationRules.where((r) => r.isActive)) {
+          final amountType = rule.conditions['amountType'] as String? ?? 'amount';
+          final amountValue = (rule.conditions['amountValue'] as num?)?.toDouble() ?? 0.0;
+
+          double percentageValue = 0.0;
+          if (amountType == 'percentage') {
+            percentageValue = amountValue;
+          } else if (amountType == 'amount') {
+            percentageValue = (amountValue / monthlyIncome) * 100;
+          }
+          totalAllocated += percentageValue;
+        }
+      }
+
+      return {
+        'totalAllocated': totalAllocated,
+        'monthlyIncome': monthlyIncome,
+      };
+    } catch (e) {
+      print('Error calculating allocation summary: $e');
+      return {
+        'totalAllocated': 0.0,
+        'monthlyIncome': 0.0,
+      };
     }
   }
 
@@ -402,19 +449,19 @@ class _RulesScreenState extends State<RulesScreen>
           totalAllocated += (rule.actions['allocateToSavings'] ?? 0.0)
               .toDouble();
         }
-        double remaining = 100 - totalAllocated;
+        //double remaining = 100 - totalAllocated;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
               // Allocation Summary
-              FutureBuilder<UserModel?>(
-                future: _firebaseService.getUserProfile(
-                  _firebaseService.currentUserId!,
-                ),
-                builder: (context, userSnapshot) {
-                  final monthlyIncome = userSnapshot.data?.monthlyIncome ?? 0.0;
+              FutureBuilder<Map<String, dynamic>>(
+                future: _calculateAllocationSummary(allocationRules),
+                builder: (context, summarySnapshot) {
+                  final totalAllocated = summarySnapshot.data?['totalAllocated'] ?? 0.0;
+                  final monthlyIncome = summarySnapshot.data?['monthlyIncome'] ?? 0.0;
+                  final remaining = 100 - totalAllocated;
 
                   return Container(
                     padding: const EdgeInsets.all(20),

@@ -55,4 +55,30 @@ class BudgetModel {
       isAutoCreated: map['isAutoCreated'] ?? false,
     );
   }
+
+  BudgetModel copyWith({
+    String? id,
+    String? userId,
+    String? category,
+    double? amount,
+    double? spent,
+    String? period,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? linkedAlertRuleId,
+    bool? isAutoCreated,
+  }) {
+    return BudgetModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      category: category ?? this.category,
+      amount: amount ?? this.amount,
+      spent: spent ?? this.spent,
+      period: period ?? this.period,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
+      linkedAlertRuleId: linkedAlertRuleId ?? this.linkedAlertRuleId,
+      isAutoCreated: isAutoCreated ?? this.isAutoCreated,
+    );
+  }
 }

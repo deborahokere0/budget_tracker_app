@@ -1,7 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../../constants/category_constants.dart';
 import '../../models/budget_model.dart';
 import '../../models/rule_model.dart';
+import '../../models/transaction_model.dart';
 import '../../models/user_model.dart';
 import '../../services/firebase_service.dart';
 import '../../theme/app_theme.dart';
@@ -19,11 +21,13 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
   final FirebaseService _firebaseService = FirebaseService();
   UserModel? _currentUser;
   bool _isLoading = true;
+  Map<String, double> _actualSpending = {};
 
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
+    _loadActualSpending();
   }
 
   Future<void> _loadUserProfile() async {
@@ -45,31 +49,402 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
     }
   }
 
-  Future<void> _navigateToCreateAlert(String category) async {
-    // Navigate to create alert rule with category pre-filled
+  Future<void> _navigateToCreateAllocation(String category) async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => AddRuleScreen(
-          ruleType: 'alert',
-          // Pass category as a parameter - you'll need to modify AddRuleScreen to accept this
-          existingRule: RuleModel(
-            id: '',
-            userId: _firebaseService.currentUserId!,
-            name: '$category Budget Alert',
-            type: 'alert',
-            conditions: {'category': category, 'threshold': 0},
-            actions: {'sendNotification': true},
-            createdAt: DateTime.now(),
+          ruleType: 'allocation',
+          prefilledCategory: category,
+        ),
+      ),
+    );
+
+    if (result != null || mounted) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _loadActualSpending();
+      setState(() {});
+    }
+  }
+
+  Future<void> _navigateToEditAllocation(RuleModel allocationRule) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddRuleScreen(
+          ruleType: 'allocation',
+          existingRule: allocationRule,
+        ),
+      ),
+    );
+
+    if (result != null || mounted) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _loadActualSpending();
+      setState(() {});
+    }
+  }
+
+  Future<void> _showAlertsBottomSheet(
+      String category,
+      BudgetModel? budget,
+      List<RuleModel> alertRules,
+      ) async {
+    if (budget == null) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Alerts for $category Budget',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Budget Amount',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          Text(
+                            CurrencyFormatter.format(budget.amount),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Current Spending',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          Text(
+                            CurrencyFormatter.format(budget.spent),
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: budget.spent > budget.amount
+                                  ? AppTheme.red
+                                  : AppTheme.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                if (alertRules.isEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.notifications_off,
+                            size: 64,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No alerts set for this budget',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  ...alertRules.map((alert) {
+                    final thresholdType =
+                    alert.conditions['thresholdType'] as String?;
+                    final thresholdValue =
+                        (alert.conditions['thresholdValue'] as num?)
+                            ?.toDouble() ??
+                            0.0;
+
+                    double thresholdAmount = thresholdValue;
+                    if (thresholdType == 'percentage') {
+                      thresholdAmount = budget.amount * (thresholdValue / 100);
+                    }
+
+                    bool isTriggered = budget.spent >= thresholdAmount;
+                    bool isPassed = alert.lastTriggered != null &&
+                        budget.spent < thresholdAmount;
+
+                    String status = 'Active';
+                    Color statusColor = AppTheme.green;
+                    IconData statusIcon = Icons.check_circle;
+
+                    if (!alert.isActive) {
+                      status = 'Inactive';
+                      statusColor = Colors.grey;
+                      statusIcon = Icons.cancel;
+                    } else if (isTriggered) {
+                      status = 'TRIGGERED';
+                      statusColor = AppTheme.red;
+                      statusIcon = Icons.error;
+                    } else if (isPassed) {
+                      status = 'Passed';
+                      statusColor = Colors.grey;
+                      statusIcon = Icons.check_circle_outline;
+                    }
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: statusColor.withValues(alpha: 0.3),
+                          width: 2,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(statusIcon, color: statusColor, size: 24),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      alert.name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    Text(
+                                      status.toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: statusColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _getPriorityColor(alert.priority)
+                                      .withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'Priority ${alert.priority}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: _getPriorityColor(alert.priority),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Threshold',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                    Text(
+                                      thresholdType == 'percentage'
+                                          ? '${thresholdValue.toStringAsFixed(0)}% (${CurrencyFormatter.format(thresholdAmount)})'
+                                          : CurrencyFormatter.format(
+                                          thresholdValue),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (alert.lastTriggered != null)
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        'Last Triggered',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                      Text(
+                                        _getTimeAgo(alert.lastTriggered!),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    Navigator.pop(context);
+                                    await _navigateToEditAlert(alert);
+                                  },
+                                  icon: const Icon(Icons.edit, size: 16),
+                                  label: const Text('Edit'),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    final confirm = await _confirmDelete(
+                                      context,
+                                      alert.name,
+                                    );
+                                    if (confirm == true) {
+                                      await _firebaseService.deleteRule(
+                                        alert.id,
+                                      );
+                                      Navigator.pop(context);
+                                      setState(() {});
+                                    }
+                                  },
+                                  icon: const Icon(Icons.delete, size: 16),
+                                  label: const Text('Delete'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppTheme.red,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+
+                const SizedBox(height: 16),
+
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await _navigateToCreateAlert(category);
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Create New Alert'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryBlue,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
 
-    // Auto-refresh after returning
+    setState(() {});
+  }
+
+  Future<void> _navigateToCreateAlert(String category) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddRuleScreen(
+          ruleType: 'alert',
+          prefilledCategory: category,
+        ),
+      ),
+    );
+
     if (result != null || mounted) {
       await Future.delayed(const Duration(milliseconds: 500));
-      setState(() {}); // Trigger rebuild to refresh data
+      await _loadActualSpending();
+      setState(() {});
     }
   }
 
@@ -84,10 +459,87 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
       ),
     );
 
-    // Auto-refresh after returning
     if (result != null || mounted) {
       await Future.delayed(const Duration(milliseconds: 500));
+      await _loadActualSpending();
       setState(() {});
+    }
+  }
+
+  Future<bool?> _confirmDelete(BuildContext context, String name) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Alert'),
+        content: Text('Delete "$name"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppTheme.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _loadActualSpending() async {
+    try {
+      final now = DateTime.now();
+      final startOfMonth = DateTime(now.year, now.month, 1);
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('transactions')
+          .doc(_firebaseService.currentUserId)
+          .collection('userTransactions')
+          .where('type', isEqualTo: 'expense')
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
+          .get();
+
+      final Map<String, double> categoryTotals = {};
+      for (var doc in snapshot.docs) {
+        final transaction = TransactionModel.fromMap(doc.data());
+        categoryTotals[transaction.category] =
+            (categoryTotals[transaction.category] ?? 0) + transaction.actualExpenseAmount;
+      }
+
+      if (mounted) {
+        setState(() => _actualSpending = categoryTotals);
+      }
+    } catch (e) {
+      print('Error loading actual spending: $e');
+    }
+  }
+
+  String _getTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else {
+      return '${difference.inDays}d ago';
+    }
+  }
+
+  Color _getPriorityColor(int priority) {
+    switch (priority) {
+      case 5:
+        return AppTheme.red;
+      case 4:
+        return AppTheme.orange;
+      case 3:
+        return Colors.amber;
+      case 2:
+        return AppTheme.primaryBlue;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -137,42 +589,51 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
               }
 
               final budgets = budgetSnapshot.data ?? [];
-              final alertRules = ruleSnapshot.data
-                  ?.where((r) => r.type == 'alert')
-                  .toList() ??
-                  [];
+              final allRules = ruleSnapshot.data ?? [];
+              final allocationRules =
+              allRules.where((r) => r.type == 'allocation').toList();
+              final alertRules =
+              allRules.where((r) => r.type == 'alert').toList();
 
-              // Create maps for quick lookup
               final budgetsByCategory = <String, BudgetModel>{};
               for (var budget in budgets) {
                 budgetsByCategory[budget.category] = budget;
               }
 
-              final alertsByCategory = <String, RuleModel>{};
-              for (var rule in alertRules) {
+              final allocationsByCategory = <String, RuleModel>{};
+              for (var rule in allocationRules) {
                 final category = rule.conditions['category'] as String?;
                 if (category != null) {
-                  alertsByCategory[category] = rule;
+                  allocationsByCategory[category] = rule;
                 }
               }
 
-              // Separate tracked and untracked categories
+              final alertsByCategory = <String, List<RuleModel>>{};
+              for (var rule in alertRules) {
+                final category = rule.conditions['category'] as String?;
+                if (category != null) {
+                  alertsByCategory[category] =
+                  [...(alertsByCategory[category] ?? []), rule];
+                }
+              }
+
               final trackedCategories = <String>[];
               final untrackedCategories = <String>[];
 
               for (var category in CategoryConstants.expenseCategories) {
                 final budget = budgetsByCategory[category];
-                final hasAlert = alertsByCategory.containsKey(category);
+                final hasAllocation = allocationsByCategory.containsKey(category);
                 final hasSpending = budget != null && budget.spent > 0;
+                final hasBudgetAmount = budget != null && budget.amount > 0;
 
-                if (hasAlert || hasSpending || (budget != null && budget.amount > 0)) {
+                if (hasAllocation || hasBudgetAmount || hasSpending ||
+                    (budget != null && budget.amount > 0)) {
                   trackedCategories.add(category);
                 } else {
                   untrackedCategories.add(category);
                 }
               }
 
-              // Sort alphabetically
               trackedCategories.sort();
               untrackedCategories.sort();
 
@@ -181,7 +642,6 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Period indicator
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -215,7 +675,6 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
 
                     const SizedBox(height: 24),
 
-                    // Tracked Categories
                     if (trackedCategories.isNotEmpty) ...[
                       const Text(
                         'Active Budgets',
@@ -226,19 +685,17 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                       ),
                       const SizedBox(height: 16),
                       ...trackedCategories.map((category) {
-                        final budget = budgetsByCategory[category];
-                        final alertRule = alertsByCategory[category];
                         return _buildBudgetCard(
                           category: category,
-                          budget: budget,
-                          alertRule: alertRule,
+                          budget: budgetsByCategory[category],
+                          allocationRule: allocationsByCategory[category],
+                          alertRules: alertsByCategory[category] ?? [],
                           isDimmed: false,
                         );
                       }),
                       const SizedBox(height: 32),
                     ],
 
-                    // Untracked Categories
                     if (untrackedCategories.isNotEmpty) ...[
                       const Text(
                         'Untracked Categories',
@@ -250,7 +707,7 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Create alert rules to start tracking these categories',
+                        'No budget set, auto-allocate your budget',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey[600],
@@ -261,7 +718,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                         return _buildBudgetCard(
                           category: category,
                           budget: null,
-                          alertRule: null,
+                          allocationRule: null,
+                          alertRules: [],
                           isDimmed: true,
                         );
                       }),
@@ -279,16 +737,16 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
   Widget _buildBudgetCard({
     required String category,
     required BudgetModel? budget,
-    required RuleModel? alertRule,
+    required RuleModel? allocationRule,
+    required List<RuleModel> alertRules,
     required bool isDimmed,
   }) {
     final budgetAmount = budget?.amount ?? 0.0;
-    final spent = budget?.spent ?? 0.0;
-    final hasAlert = alertRule != null;
+    final spent = budget?.spent ?? _actualSpending[category] ?? 0.0;
+    final hasAllocation = allocationRule != null;
     final isOverBudget = budgetAmount > 0 && spent > budgetAmount;
-    final hasSpendingNoAlert = spent > 0 && !hasAlert;
+    final hasSpendingNoAllocation = spent > 0 && !hasAllocation;
 
-    // Calculate progress
     double progress = 0.0;
     if (budgetAmount > 0) {
       progress = (spent / budgetAmount).clamp(0.0, 1.0);
@@ -301,12 +759,12 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
         color: isDimmed ? Colors.grey[100] : Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: hasSpendingNoAlert
+          color: hasSpendingNoAllocation
               ? AppTheme.red
               : isOverBudget
               ? AppTheme.red
               : Colors.grey[300]!,
-          width: hasSpendingNoAlert || isOverBudget ? 2 : 1,
+          width: hasSpendingNoAllocation || isOverBudget ? 2 : 1,
         ),
         boxShadow: isDimmed
             ? null
@@ -322,10 +780,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row
           Row(
             children: [
-              // Category Icon
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
@@ -343,7 +799,6 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
               ),
               const SizedBox(width: 12),
 
-              // Category Name & Alert Status
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -357,21 +812,25 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    if (hasAlert)
+                    if (hasAllocation)
                       Row(
                         children: [
                           Icon(
-                            Icons.notifications_active,
+                            Icons.rule,
                             size: 12,
-                            color: AppTheme.green,
+                            color: allocationRule.isActive
+                                ? AppTheme.green
+                                : Colors.grey,
                           ),
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              alertRule.name,
+                              allocationRule.name,
                               style: TextStyle(
                                 fontSize: 11,
-                                color: AppTheme.green,
+                                color: allocationRule.isActive
+                                    ? AppTheme.green
+                                    : Colors.grey,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -381,7 +840,7 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                       )
                     else
                       Text(
-                        'No alert set',
+                        'No budget set',
                         style: TextStyle(
                           fontSize: 11,
                           color: Colors.grey[500],
@@ -391,29 +850,73 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                 ),
               ),
 
-              // Edit Button
+              if (budget != null || hasAllocation)
+                GestureDetector(
+                  onTap: () {
+                    if (budget != null) {
+                      _showAlertsBottomSheet(category, budget, alertRules);
+                    } else {
+                      _navigateToCreateAlert(category);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: (alertRules.isNotEmpty ? AppTheme.red : AppTheme.primaryBlue)
+                          .withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: alertRules.isNotEmpty ? AppTheme.red : AppTheme.primaryBlue,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          alertRules.isNotEmpty ? Icons.notifications_active : Icons.add_alert,
+                          size: 14,
+                          color: alertRules.isNotEmpty ? AppTheme.red : AppTheme.primaryBlue,
+                        ),
+                        if (alertRules.isNotEmpty) ...[
+                          const SizedBox(width: 4),
+                          Text(
+                            '${alertRules.length}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.red,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+
+              const SizedBox(width: 8),
               IconButton(
                 icon: Icon(
-                  hasAlert ? Icons.edit : Icons.add_alert,
+                  hasAllocation ? Icons.edit : Icons.add,
                   color: isDimmed ? Colors.grey : AppTheme.primaryBlue,
                   size: 20,
                 ),
                 onPressed: () {
-                  if (hasAlert) {
-                    _navigateToEditAlert(alertRule);
+                  if (hasAllocation) {
+                    _navigateToEditAllocation(allocationRule);
                   } else {
-                    _navigateToCreateAlert(category);
+                    _navigateToCreateAllocation(category);
                   }
                 },
-                tooltip: hasAlert ? 'Edit alert rule' : 'Create alert rule',
+                tooltip: hasAllocation
+                    ? 'Edit allocation rule'
+                    : 'Create allocation rule',
               ),
             ],
           ),
 
           const SizedBox(height: 16),
 
-          // Warning for spending without alert
-          if (hasSpendingNoAlert) ...[
+          if (hasSpendingNoAllocation) ...[
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -449,7 +952,7 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () => _navigateToCreateAlert(category),
+                    onPressed: () => _navigateToCreateAllocation(category),
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       backgroundColor: AppTheme.red,
@@ -467,7 +970,6 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
             const SizedBox(height: 16),
           ],
 
-          // Budget Amount Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -491,7 +993,6 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
 
           const SizedBox(height: 8),
 
-          // Spent Amount Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -503,7 +1004,7 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                 ),
               ),
               Text(
-                CurrencyFormatter.format(spent),
+                CurrencyFormatter.format(budget?.spent ?? _actualSpending[category] ?? 0.0),
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -519,7 +1020,6 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
 
           const SizedBox(height: 12),
 
-          // Progress Bar
           LinearProgressIndicator(
             value: progress,
             backgroundColor: Colors.grey[200],
@@ -536,7 +1036,6 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
 
           const SizedBox(height: 8),
 
-          // Progress Text
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -565,10 +1064,11 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
             ],
           ),
 
-          // Period type indicator
           if (budget != null) ...[
-            const SizedBox(height: 8),
-            Row(
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -588,8 +1088,7 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                     ),
                   ),
                 ),
-                if (budget.linkedAlertRuleId != null) ...[
-                  const SizedBox(width: 6),
+                if (budget.linkedAlertRuleId != null)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 6,
@@ -608,8 +1107,51 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                       ),
                     ),
                   ),
-                ],
+                if (alertRules.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.orange.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.notifications,
+                          size: 10,
+                          color: AppTheme.orange,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          '${alertRules.length} alert${alertRules.length > 1 ? 's' : ''}',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.orange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
+            ),
+          ],
+
+          if (isDimmed && !hasAllocation) ...[
+            const SizedBox(height: 12),
+            Center(
+              child: Text(
+                'No budget set, auto-allocate your budget',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[500],
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
             ),
           ],
         ],

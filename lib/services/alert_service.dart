@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/budget_model.dart';
 import '../models/rule_model.dart';
 import '../models/transaction_model.dart';
 import 'notification_service.dart';
@@ -99,41 +100,57 @@ class AlertService {
       Map<String, double> categorySpending,
       ) async {
     final category = rule.conditions['category'] as String?;
-    final threshold = (rule.conditions['threshold'] as num?)?.toDouble() ?? 0.0;
+    //final budgetId = rule.conditions['budgetId'] as String?;
+    final thresholdType = rule.conditions['thresholdType'] as String?;
+    final thresholdValue = (rule.conditions['thresholdValue'] as num?)?.toDouble() ?? 0.0;
 
     if (category == null) {
       print('Alert rule ${rule.name} has no category');
       return;
     }
 
+    // GET BUDGET FOR THIS CATEGORY
+    final budgetSnapshot = await _firestore
+        .collection('budgets')
+        .doc(userId)
+        .collection('userBudgets')
+        .where('category', isEqualTo: category)
+        .limit(1)
+        .get();
+
+    if (budgetSnapshot.docs.isEmpty) {
+      print('No budget found for category $category');
+      return;
+    }
+
+    final budget = BudgetModel.fromMap(budgetSnapshot.docs.first.data());
     final currentSpending = categorySpending[category] ?? 0.0;
 
-    print('Checking alert: ${rule.name} | Category: $category | Spending: $currentSpending | Threshold: $threshold');
+    // Calculate threshold in amount
+    double thresholdAmount = thresholdValue;
+    if (thresholdType == 'percentage') {
+      thresholdAmount = budget.amount * (thresholdValue / 100);
+    }
+
+    print('Checking alert: ${rule.name} | Category: $category | Spending: $currentSpending | Threshold: $thresholdAmount (${thresholdType})');
 
     // Check if threshold exceeded
-    if (currentSpending >= threshold) {
+    if (currentSpending >= thresholdAmount) {
       print('Threshold exceeded! Checking if should notify...');
 
-      // Simplified notification logic
       final shouldNotify = await _shouldSendNotification(rule, currentSpending);
 
       if (shouldNotify) {
         print('Sending notification for ${rule.name}');
 
-        // Send notification
         await NotificationService.sendAlertNotification(
           rule: rule,
           currentSpending: currentSpending,
         );
 
-        // Update lastTriggered timestamp
         await _updateLastTriggered(rule.id);
         print('Notification sent and lastTriggered updated');
-      } else {
-        print('Notification blocked by shouldSendNotification logic');
       }
-    } else {
-      print('Threshold not exceeded, no alert needed');
     }
   }
 
