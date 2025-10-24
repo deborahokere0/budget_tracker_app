@@ -49,18 +49,17 @@ class AlertService {
 
     return _firestore
         .collection('transactions')
-        .where('userId', isEqualTo: userId)
+        .doc(userId)
+        .collection('userTransactions')
         .where('type', isEqualTo: 'expense')
         .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
         .snapshots()
         .map((snapshot) {
       Map<String, double> categoryTotals = {};
       for (var doc in snapshot.docs) {
-        final data = doc.data();
-        final category = data['category'] as String;
-        final amount = (data['amount'] as num).toDouble();
-
-        categoryTotals[category] = (categoryTotals[category] ?? 0) + amount;
+        final transaction = TransactionModel.fromMap(doc.data());
+        categoryTotals[transaction.category] =
+            (categoryTotals[transaction.category] ?? 0) + transaction.actualExpenseAmount;
       }
       return categoryTotals;
     });
@@ -297,8 +296,8 @@ class AlertService {
     return getCategorySpendingStream().asyncMap((spending) async {
       final rulesSnapshot = await _firestore
           .collection('rules')
-          .doc(userId)  // ADD THIS
-          .collection('userRules')  // ADD THIS
+          .doc(userId)
+          .collection('userRules')
           .where('type', isEqualTo: 'alert')
           .where('isActive', isEqualTo: true)
           .get();
@@ -308,18 +307,35 @@ class AlertService {
       for (var doc in rulesSnapshot.docs) {
         final rule = RuleModel.fromMap(doc.data());
         final category = rule.conditions['category'] as String?;
-        final threshold = (rule.conditions['threshold'] as num?)?.toDouble() ?? 0.0;
+        final thresholdType = rule.conditions['thresholdType'] as String?;
+        final thresholdValue = (rule.conditions['thresholdValue'] as num?)?.toDouble() ?? 0.0;
 
-        if (category != null) {
-          final currentSpending = spending[category] ?? 0.0;
+        if (category == null) continue;
 
-          if (currentSpending >= threshold) {
-            triggeredAlerts.add({
-              'rule': rule,
-              'currentSpending': currentSpending,
-              'exceeded': currentSpending - threshold,
-            });
-          }
+        final budgetSnapshot = await _firestore
+            .collection('budgets')
+            .doc(userId)
+            .collection('userBudgets')
+            .where('category', isEqualTo: category)
+            .limit(1)
+            .get();
+
+        if (budgetSnapshot.docs.isEmpty) continue;
+
+        final budget = BudgetModel.fromMap(budgetSnapshot.docs.first.data());
+        double thresholdAmount = thresholdValue;
+        if (thresholdType == 'percentage') {
+          thresholdAmount = budget.amount * (thresholdValue / 100);
+        }
+
+        final currentSpending = spending[category] ?? 0.0;
+
+        if (currentSpending >= thresholdAmount) {
+          triggeredAlerts.add({
+            'rule': rule,
+            'currentSpending': currentSpending,
+            'exceeded': currentSpending - thresholdAmount,
+          });
         }
       }
 
