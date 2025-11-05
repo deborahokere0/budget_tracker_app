@@ -4,7 +4,7 @@ import '../../services/firebase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/currency_formatter.dart';
 import '../transactions/add_transaction_screen.dart';
-import '../widgets/enhanced_alert_banner.dart';
+// import '../widgets/enhanced_alert_banner.dart';
 import 'budget_tracker_screen.dart';
 
 class HybridEarnerDashboard extends StatelessWidget {
@@ -175,10 +175,10 @@ class HybridEarnerDashboard extends StatelessWidget {
                     ),
                   ),
 
-                  EnhancedAlertBannersContainer(
-                    userId: user.uid,
-                    dashboardType: 'hybrid',
-                  ),
+                  // EnhancedAlertBannersContainer(
+                  //   userId: user.uid,
+                  //   dashboardType: 'hybrid',
+                  // ),
 
                   // Content Area
                   Container(

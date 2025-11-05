@@ -40,6 +40,11 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
+      // ============ MONTHLY RESET CHECK ============
+      // This runs every time the app starts and checks if monthly reset is needed
+      await _firebaseService.checkAndPerformMonthlyReset();
+      // =============================================
+
       await _loadUserProfile();
       await _loadDashboardStats();
 
@@ -167,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Wrap dashboard with global alert overlay
     return GlobalAlertOverlay(
       userId: _currentUser!.uid,
-      dashboardType: _currentUser!.incomeType,
+      //dashboardType: _currentUser!.incomeType,
       child: _buildDashboardByType(),
     );
   }
@@ -206,14 +211,14 @@ class _HomeScreenState extends State<HomeScreen> {
       _currentUser != null
           ? GlobalAlertOverlay(
         userId: _currentUser!.uid,
-        dashboardType: _currentUser!.incomeType,
+        //dashboardType: _currentUser!.incomeType,
         child: const TransactionsListScreen(),
       )
           : const TransactionsListScreen(),
       _currentUser != null
           ? GlobalAlertOverlay(
         userId: _currentUser!.uid,
-        dashboardType: _currentUser!.incomeType,
+        //dashboardType: _currentUser!.incomeType,
         child: const RulesScreen(),
       )
           : const RulesScreen(),
@@ -254,6 +259,16 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: _handleSignOut,
             tooltip: 'Sign Out',
           ),
+          // In your settings/profile screen
+          ElevatedButton(
+            onPressed: () async {
+              await _firebaseService.checkAndPerformMonthlyReset();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Manual reset completed')),
+              );
+            },
+            child: const Text('Force Monthly Reset (Testing Only)'),
+          )
         ],
       )
           : null,

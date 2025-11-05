@@ -5,7 +5,6 @@ import '../../services/firebase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/currency_formatter.dart';
 import '../transactions/add_transaction_screen.dart';
-import '../widgets/enhanced_alert_banner.dart';
 import 'budget_tracker_screen.dart';
 
 class VariableEarnerDashboard extends StatelessWidget {
@@ -27,40 +26,34 @@ class VariableEarnerDashboard extends StatelessWidget {
       child: RefreshIndicator(
         onRefresh: () async => onRefresh(),
         child: StreamBuilder<Map<String, dynamic>>(
-          // Stream stats instead of using static prop
           stream: _getStatsStream(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final stats =
-                snapshot.data ??
-                {
-                  'netAmount': 0.0,
-                  'weeklyIncome': 0.0,
-                  'weeklyExpenses': 0.0,
-                  'totalIncome': 0.0,
-                  'totalExpenses': 0.0,
-                };
+            final stats = snapshot.data ?? {
+              'netAmount': 0.0,
+              'weeklyIncome': 0.0,
+              'weeklyExpenses': 0.0,
+              'totalIncome': 0.0,
+              'totalExpenses': 0.0,
+            };
 
             final netAmount = stats['netAmount'] ?? 0.0;
             final weeklyIncome = stats['weeklyIncome'] ?? 0.0;
             final weeklyExpenses = stats['weeklyExpenses'] ?? 0.0;
 
-            // Calculate runway period (how many days current funds will last)
+            // Calculate runway period
             final dailyBurn = weeklyExpenses / 7;
-            final runwayDays = dailyBurn > 0
-                ? (netAmount / dailyBurn).round()
-                : 0;
+            final runwayDays = dailyBurn > 0 ? (netAmount / dailyBurn).round() : 0;
             final runwayStatus = runwayDays > 14 ? 'STABLE' : 'CRITICAL';
 
             // Income volatility check
-            final lastWeekIncome =
-                150000.0; // This would come from historical data
-            final incomeChange =
-                ((weeklyIncome - lastWeekIncome) / lastWeekIncome * 100)
-                    .round();
+            final lastWeekIncome = 150000.0; // Would come from historical data
+            final incomeChange = lastWeekIncome > 0
+                ? ((weeklyIncome - lastWeekIncome) / lastWeekIncome * 100).round()
+                : 0;
             final isIncomeVolatile = incomeChange.abs() > 25;
 
             return SingleChildScrollView(
@@ -74,7 +67,7 @@ class VariableEarnerDashboard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'Home',
                           style: TextStyle(
                             fontSize: 32,
@@ -86,17 +79,16 @@ class VariableEarnerDashboard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.1),
+                            color: Colors.white.withOpacity(0.1), // FIXED: Using withOpacity
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
+                                  const Text(
                                     'Net Amount',
                                     style: TextStyle(
                                       color: Colors.white70,
@@ -104,8 +96,8 @@ class VariableEarnerDashboard extends StatelessWidget {
                                     ),
                                   ),
                                   Text(
-                                    'Oct 13 - Oct 19',
-                                    style: TextStyle(
+                                    _getDateRange(),
+                                    style: const TextStyle(
                                       color: Colors.white70,
                                       fontSize: 12,
                                     ),
@@ -123,14 +115,12 @@ class VariableEarnerDashboard extends StatelessWidget {
                               ),
                               const SizedBox(height: 16),
                               Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
+                                      const Text(
                                         'Earned',
                                         style: TextStyle(
                                           color: Colors.white70,
@@ -139,7 +129,7 @@ class VariableEarnerDashboard extends StatelessWidget {
                                       ),
                                       Text(
                                         CurrencyFormatter.format(weeklyIncome),
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           color: Colors.white,
                                           fontSize: 16,
                                           fontWeight: FontWeight.w500,
@@ -148,10 +138,9 @@ class VariableEarnerDashboard extends StatelessWidget {
                                     ],
                                   ),
                                   Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.center,
                                     children: [
-                                      Text(
+                                      const Text(
                                         'Spent',
                                         style: TextStyle(
                                           color: Colors.white70,
@@ -159,10 +148,8 @@ class VariableEarnerDashboard extends StatelessWidget {
                                         ),
                                       ),
                                       Text(
-                                        CurrencyFormatter.format(
-                                          weeklyExpenses,
-                                        ),
-                                        style: TextStyle(
+                                        CurrencyFormatter.format(weeklyExpenses),
+                                        style: const TextStyle(
                                           color: Colors.white,
                                           fontSize: 16,
                                           fontWeight: FontWeight.w500,
@@ -173,7 +160,7 @@ class VariableEarnerDashboard extends StatelessWidget {
                                   Column(
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
-                                      Text(
+                                      const Text(
                                         'RUNWAY PERIOD',
                                         style: TextStyle(
                                           color: Colors.white70,
@@ -209,14 +196,51 @@ class VariableEarnerDashboard extends StatelessWidget {
                             ],
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        // Income volatility indicator
+                        if (isIncomeVolatile)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppTheme.orange.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppTheme.orange),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  incomeChange > 0
+                                      ? Icons.trending_up
+                                      : Icons.trending_down,
+                                  color: AppTheme.orange,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Income Volatility Alert',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      Text(
+                                        'Income ${incomeChange > 0 ? "increased" : "decreased"} by ${incomeChange.abs()}% from last week',
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
-                  ),
-
-                  // Alert Banners
-                  EnhancedAlertBannersContainer(
-                    userId: user.uid,
-                    dashboardType: 'variable',
                   ),
 
                   // White content area
@@ -233,253 +257,168 @@ class VariableEarnerDashboard extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Weekly Budgets
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Weekly Budgets',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const BudgetTrackerScreen(),
-                                    ),
-                                  );
-                                },
-                                child: const Text('See All >'),
-                              ),
-                            ],
+                          // Weekly Budget Overview
+                          const Text(
+                            'Weekly Budget Overview',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           const SizedBox(height: 16),
+                          SizedBox(
+                            height: 100,
+                            child: StreamBuilder<List<BudgetModel>>(
+                              stream: _firebaseService.getBudgets(),
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                                  return const Center(
+                                    child: Text('No budgets set'),
+                                  );
+                                }
+                                final budgets = snapshot.data!
+                                    .where((b) => b.period == 'weekly')
+                                    .toList();
 
-                          StreamBuilder<List<BudgetModel>>(
-                            stream: _firebaseService.getBudgets(),
-                            builder: (context, snapshot) {
-                              if (!snapshot.hasData) {
-                                return const Center(
-                                  child: CircularProgressIndicator(),
+                                if (budgets.isEmpty) {
+                                  return const Center(
+                                    child: Text('No weekly budgets'),
+                                  );
+                                }
+
+                                return ListView.builder(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: budgets.length,
+                                  itemBuilder: (context, index) {
+                                    return _buildWeeklyBudgetCard(budgets[index]);
+                                  },
                                 );
-                              }
-
-                              final budgets = snapshot.data!.take(3).toList();
-
-                              return Row(
-                                children: budgets
-                                    .map(
-                                      (budget) => Expanded(
-                                        child: _buildWeeklyBudgetCard(budget),
-                                      ),
-                                    )
-                                    .toList(),
-                              );
-                            },
-                          ),
-
-                          const SizedBox(height: 24),
-
-                          // Income Volatility Alert
-                          if (isIncomeVolatile)
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: AppTheme.green.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppTheme.green),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.trending_up,
-                                    color: AppTheme.green,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Income Volatility Alert',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: AppTheme.green,
-                                          ),
-                                        ),
-                                        Text(
-                                          'You earned ${incomeChange.abs()}% ${incomeChange > 0 ? 'more' : 'less'} than last week. Congratulations!',
-                                          style: TextStyle(
-                                            color: AppTheme.green,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              },
                             ),
-
+                          ),
                           const SizedBox(height: 24),
 
-                          // Emergency Fund Transfer
+                          // Cashflow Summary
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: AppTheme.primaryBlue.withValues(
-                                alpha: 0.1,
-                              ),
-                              borderRadius: BorderRadius.circular(12),
+                              color: AppTheme.lightGray,
+                              borderRadius: BorderRadius.circular(16),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'Emergency Fund Transfer',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  CurrencyFormatter.format(475000),
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.primaryBlue,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '₦10,000 transferred this month',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 12,
-                                  ),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'Cashflow Summary',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.refresh, size: 20),
+                                      onPressed: onRefresh,
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                    ),
+                                  ],
                                 ),
                                 const SizedBox(height: 12),
-                                ElevatedButton(
-                                  onPressed: () {},
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: AppTheme.primaryBlue,
-                                    minimumSize: const Size(
-                                      double.infinity,
-                                      40,
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                  children: [
+                                    Column(
+                                      children: [
+                                        const Icon(Icons.arrow_downward,
+                                            color: AppTheme.green),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          CurrencyFormatter.format(weeklyIncome),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: AppTheme.green,
+                                          ),
+                                        ),
+                                        const Text(
+                                          'Income',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                  child: const Text('View Fund History'),
+                                    Column(
+                                      children: [
+                                        const Icon(Icons.arrow_upward,
+                                            color: AppTheme.red),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          CurrencyFormatter.format(weeklyExpenses),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: AppTheme.red,
+                                          ),
+                                        ),
+                                        const Text(
+                                          'Expenses',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                    Column(
+                                      children: [
+                                        const Icon(Icons.savings,
+                                            color: AppTheme.primaryBlue),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          CurrencyFormatter.format(
+                                              weeklyIncome - weeklyExpenses),
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: AppTheme.primaryBlue,
+                                          ),
+                                        ),
+                                        const Text(
+                                          'Saved',
+                                          style: TextStyle(fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
                           ),
-
                           const SizedBox(height: 24),
 
-                          // Top Income & Spend
+                          // Income Tracker
+                          const Text(
+                            'Income Tracker',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
                           Row(
                             children: [
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.purple[50],
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Top Income',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text('Fiverr'),
-                                          Icon(Icons.calendar_today, size: 16),
-                                        ],
-                                      ),
-                                      Text(
-                                        CurrencyFormatter.format(45000),
-                                        style: TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppTheme.green,
-                                        ),
-                                      ),
-                                      Text(
-                                        '25 June',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                              _buildIncomeCard(
+                                'Gig Work',
+                                stats['gigIncome'] ?? 0.0,
+                                Icons.work,
+                                Colors.purple,
                               ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orange[50],
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Top Spend',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text('KFC'),
-                                          Icon(Icons.calendar_today, size: 16),
-                                        ],
-                                      ),
-                                      Text(
-                                        '-${CurrencyFormatter.format(9000)}',
-                                        style: TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppTheme.red,
-                                        ),
-                                      ),
-                                      Text(
-                                        '24 June',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                              const SizedBox(width: 12),
+                              _buildIncomeCard(
+                                'Other',
+                                0.0, // Would track other income
+                                Icons.more_horiz,
+                                Colors.orange,
                               ),
                             ],
                           ),
-
                           const SizedBox(height: 24),
 
-                          // Action Buttons
                           _buildActionButtons(context),
                         ],
                       ),
@@ -494,10 +433,19 @@ class VariableEarnerDashboard extends StatelessWidget {
     );
   }
 
-  // Create stream that listens to transactions and recalculates stats
+  String _getDateRange() {
+    final now = DateTime.now();
+    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 6));
+
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    return '${months[weekStart.month - 1]} ${weekStart.day} - ${months[weekEnd.month - 1]} ${weekEnd.day}';
+  }
+
   Stream<Map<String, dynamic>> _getStatsStream() {
     return _firebaseService.getTransactions().asyncMap((transactions) async {
-      // Recalculate stats from transactions
       double totalIncome = 0;
       double totalExpenses = 0;
       double weeklyIncome = 0;
@@ -582,7 +530,7 @@ class VariableEarnerDashboard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey..withValues(alpha: 0.1),
+            color: Colors.grey.withOpacity(0.1), // FIXED: Using withOpacity
             spreadRadius: 1,
             blurRadius: 3,
           ),
@@ -610,24 +558,65 @@ class VariableEarnerDashboard extends StatelessWidget {
             builder: (context, snapshot) {
               final actualSpent = snapshot.data?[budget.category] ?? budget.spent;
               final isActuallyOverBudget = actualSpent > budget.amount;
-              return Text(
-                CurrencyFormatter.format(actualSpent),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: isActuallyOverBudget ? AppTheme.red : Colors.grey[600],
-                ),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    CurrencyFormatter.format(actualSpent),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: isActuallyOverBudget ? AppTheme.red : Colors.black87,
+                    ),
+                  ),
+                  Text(
+                    'of ${CurrencyFormatter.format(budget.amount)}',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
               );
             },
           ),
-          const SizedBox(height: 4),
-          Text(
-            CurrencyFormatter.format(budget.spent),
-            style: TextStyle(
-              fontSize: 14,
-              color: isOverBudget ? AppTheme.red : Colors.grey[600],
-            ),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildIncomeCard(String title, double amount, IconData icon, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              CurrencyFormatter.format(amount),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

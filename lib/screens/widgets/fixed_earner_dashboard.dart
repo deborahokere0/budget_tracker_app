@@ -5,7 +5,6 @@ import '../../services/firebase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/currency_formatter.dart';
 import '../transactions/add_transaction_screen.dart';
-import '../widgets/enhanced_alert_banner.dart';
 import 'budget_tracker_screen.dart';
 
 class FixedEarnerDashboard extends StatelessWidget {
@@ -36,14 +35,12 @@ class FixedEarnerDashboard extends StatelessWidget {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final stats =
-                snapshot.data ??
-                {
-                  'netAmount': 0.0,
-                  'totalIncome': 0.0,
-                  'totalExpenses': 0.0,
-                  'totalSavings': 0.0,
-                };
+            final stats = snapshot.data ?? {
+              'netAmount': 0.0,
+              'totalIncome': 0.0,
+              'totalExpenses': 0.0,
+              'totalSavings': 0.0,
+            };
 
             final netAmount = stats['netAmount'] ?? 0.0;
             final safeToSpend = netAmount > 0 ? netAmount * 0.3 : 0.0;
@@ -71,7 +68,11 @@ class FixedEarnerDashboard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
+                            gradient: LinearGradient(
+                              colors: [AppTheme.primaryBlue, AppTheme.darkBlue],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
@@ -98,8 +99,7 @@ class FixedEarnerDashboard extends StatelessWidget {
                                 children: [
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Safe-to-Spend',
@@ -121,8 +121,7 @@ class FixedEarnerDashboard extends StatelessWidget {
                                   ),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
+                                      crossAxisAlignment: CrossAxisAlignment.end,
                                       children: [
                                         const Text(
                                           'Next Pay Day',
@@ -149,11 +148,6 @@ class FixedEarnerDashboard extends StatelessWidget {
                         ),
                       ],
                     ),
-                  ),
-
-                  EnhancedAlertBannersContainer(
-                    userId: user.uid,
-                    dashboardType: 'fixed',
                   ),
 
                   // White content area
@@ -186,8 +180,7 @@ class FixedEarnerDashboard extends StatelessWidget {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) =>
-                                          const BudgetTrackerScreen(),
+                                      builder: (_) => const BudgetTrackerScreen(),
                                     ),
                                   );
                                 },
@@ -199,50 +192,32 @@ class FixedEarnerDashboard extends StatelessWidget {
                           StreamBuilder<List<BudgetModel>>(
                             stream: _firebaseService.getBudgets(),
                             builder: (context, snapshot) {
-                              if (!snapshot.hasData) {
+                              if (!snapshot.hasData || snapshot.data!.isEmpty) {
                                 return const Center(
-                                  child: CircularProgressIndicator(),
+                                  child: Text('No budgets set'),
                                 );
                               }
 
-                              final budgets = snapshot.data!.take(3).toList();
-
+                              final budgets = snapshot.data!;
                               return Column(
                                 children: budgets
+                                    .take(3)
                                     .map((budget) => _buildBudgetItem(budget))
                                     .toList(),
                               );
                             },
                           ),
-
-                          const SizedBox(height: 24),
-
-                          // Salary Alert
-                          if (daysUntilPayday <= 10)
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: AppTheme.orange.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppTheme.orange),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.warning, color: AppTheme.orange),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      'Next salary drops in $daysUntilPayday days',
-                                      style: TextStyle(color: AppTheme.orange),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
                           const SizedBox(height: 24),
 
                           // Quick Actions
+                          const Text(
+                            'Quick Actions',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
                           Row(
                             children: [
                               Expanded(
@@ -373,11 +348,11 @@ class FixedEarnerDashboard extends StatelessWidget {
   }
 
   Widget _buildQuickActionCard(
-    String title,
-    IconData icon,
-    Color bgColor,
-    Color iconColor,
-  ) {
+      String title,
+      IconData icon,
+      Color bgColor,
+      Color iconColor,
+      ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(

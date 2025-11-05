@@ -75,7 +75,6 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         _amountType = rule.conditions['amountType'] as String? ?? 'amount';
         break;
       case 'savings':
-        _selectedCategory = rule.conditions['category'] ?? CategoryConstants.expenseCategories.first;
         _isPiggyBank = rule.isPiggyBank ?? false;
         if (!_isPiggyBank) {
           _goalNameController.text = rule.goalName ?? '';
@@ -210,7 +209,6 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
           break;
 
         case 'savings':
-          conditions['category'] = _selectedCategory;
           isPiggyBank = _isPiggyBank;
           if (!_isPiggyBank) {
             goalName = _goalNameController.text;
@@ -385,7 +383,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
   Widget _buildRuleTypeFields() {
     switch (widget.ruleType) {
       case 'allocation':
-        //Color chipColor;
+      //Color chipColor;
         return Column(
           children: [
             // Category Dropdown
@@ -595,32 +593,6 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
               const SizedBox(height: 16),
             ],
 
-            DropdownButtonFormField<String>(
-              initialValue: _selectedCategory,
-              decoration: InputDecoration(
-                labelText: 'Category to Save From',
-                prefixIcon: Icon(CategoryConstants.getIcon(_selectedCategory)),
-              ),
-              items: CategoryConstants.expenseCategories
-                  .map((category) => DropdownMenuItem(
-                value: category,
-                child: Row(
-                  children: [
-                    Icon(
-                      CategoryConstants.getIcon(category),
-                      size: 20,
-                      color: CategoryConstants.getColor(category),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(category),
-                  ],
-                ),
-              ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() => _selectedCategory = value!);
-              },
-            ),
           ],
         );
 

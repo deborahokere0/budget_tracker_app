@@ -31,8 +31,8 @@ class AlertService {
     Map<String, double> categoryTotals = {};
     for (var doc in snapshot.docs) {
       final data = doc.data();
-      print('DEBUG: Transaction data: $data');  // ADD THIS
-      final transaction = TransactionModel.fromMap(doc.data());
+      print('DEBUG: Transaction data: $data');
+      final transaction = TransactionModel.fromMap(data);
       final category = transaction.category;
 
       categoryTotals[category] = (categoryTotals[category] ?? 0) + transaction.actualExpenseAmount;
@@ -68,11 +68,10 @@ class AlertService {
   // Check all active alert rules and trigger if needed
   Future<void> checkAndTriggerAlerts() async {
     try {
-      // Get all active alert rules - FIXED PATH
       final rulesSnapshot = await _firestore
           .collection('rules')
-          .doc(userId)  // Add this
-          .collection('userRules')  // Add this
+          .doc(userId)
+          .collection('userRules')
           .where('type', isEqualTo: 'alert')
           .where('isActive', isEqualTo: true)
           .get();
@@ -81,6 +80,7 @@ class AlertService {
         print('No active alert rules found');
         return;
       }
+
       final categorySpending = await getCurrentCategorySpending();
       print('Current category spending: $categorySpending');
 
@@ -99,7 +99,6 @@ class AlertService {
       Map<String, double> categorySpending,
       ) async {
     final category = rule.conditions['category'] as String?;
-    //final budgetId = rule.conditions['budgetId'] as String?;
     final thresholdType = rule.conditions['thresholdType'] as String?;
     final thresholdValue = (rule.conditions['thresholdValue'] as num?)?.toDouble() ?? 0.0;
 
@@ -153,7 +152,7 @@ class AlertService {
     }
   }
 
-  // Simplified: Determine if we should send notification
+  // Determine if we should send notification
   Future<bool> _shouldSendNotification(RuleModel rule, double currentSpending) async {
     // If never triggered, always send notification
     if (rule.lastTriggered == null) {
@@ -165,7 +164,7 @@ class AlertService {
     final hoursSinceLastTrigger =
         DateTime.now().difference(rule.lastTriggered!).inHours;
 
-    if (hoursSinceLastTrigger >= 0.01) {
+    if (hoursSinceLastTrigger >= 24) {
       print('Last trigger was $hoursSinceLastTrigger hours ago, sending reminder');
       return true;
     }
@@ -179,8 +178,8 @@ class AlertService {
     try {
       await _firestore
           .collection('rules')
-          .doc(userId)  // ADD THIS
-          .collection('userRules')  // ADD THIS
+          .doc(userId)
+          .collection('userRules')
           .doc(ruleId)
           .update({
         'lastTriggered': DateTime.now().toIso8601String(),
@@ -190,20 +189,20 @@ class AlertService {
     }
   }
 
-  // Check alert immediately after a transaction - FIXED
+  // Check alert immediately after a transaction
   Future<void> checkAlertForTransaction(TransactionModel transaction) async {
     if (transaction.type != 'expense') {
       print('Not an expense, skipping alert check');
       return;
     }
+
     try {
       print('Checking alerts for transaction: ${transaction.description} (${transaction.category})');
 
-      // FIXED: Correct path with userId
       final rulesSnapshot = await _firestore
           .collection('rules')
-          .doc(userId)  // Add userId here
-          .collection('userRules')  // Add subcollection
+          .doc(userId)
+          .collection('userRules')
           .where('type', isEqualTo: 'alert')
           .where('isActive', isEqualTo: true)
           .get();
@@ -212,6 +211,7 @@ class AlertService {
         print('No active alert rules found');
         return;
       }
+
       // Filter rules by category in Dart code
       final matchingRules = rulesSnapshot.docs
           .map((doc) => RuleModel.fromMap(doc.data()))
@@ -219,6 +219,7 @@ class AlertService {
           .toList();
 
       print('Found ${matchingRules.length} matching alert rules for ${transaction.category}');
+
       if (matchingRules.isEmpty) {
         print('No alert rules match category ${transaction.category}');
         return;
@@ -227,6 +228,7 @@ class AlertService {
       // Get current spending for this category
       final categorySpending = await getCurrentCategorySpending();
       print('Current spending for ${transaction.category}: ${categorySpending[transaction.category] ?? 0.0}');
+
       // Check each matching rule
       for (var rule in matchingRules) {
         await _checkSingleAlert(rule, categorySpending);
@@ -291,7 +293,7 @@ class AlertService {
     });
   }
 
-  // Get triggered alerts for display
+  // Get triggered alerts for display - FIXED to include all required data
   Stream<List<Map<String, dynamic>>> getTriggeredAlertsStream() {
     return getCategorySpendingStream().asyncMap((spending) async {
       final rulesSnapshot = await _firestore
@@ -312,6 +314,7 @@ class AlertService {
 
         if (category == null) continue;
 
+        // Get budget for this category
         final budgetSnapshot = await _firestore
             .collection('budgets')
             .doc(userId)
@@ -323,6 +326,8 @@ class AlertService {
         if (budgetSnapshot.docs.isEmpty) continue;
 
         final budget = BudgetModel.fromMap(budgetSnapshot.docs.first.data());
+
+        // Calculate threshold amount
         double thresholdAmount = thresholdValue;
         if (thresholdType == 'percentage') {
           thresholdAmount = budget.amount * (thresholdValue / 100);
@@ -330,11 +335,14 @@ class AlertService {
 
         final currentSpending = spending[category] ?? 0.0;
 
+        // Only include if threshold exceeded
         if (currentSpending >= thresholdAmount) {
           triggeredAlerts.add({
             'rule': rule,
             'currentSpending': currentSpending,
-            'exceeded': currentSpending - thresholdAmount,
+            'budgetAmount': budget.amount, // Total budget amount
+            'thresholdAmount': thresholdAmount, // Calculated threshold
+            'exceeded': currentSpending - thresholdAmount, // Amount over threshold
           });
         }
       }

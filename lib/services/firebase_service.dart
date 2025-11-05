@@ -15,6 +15,243 @@ class FirebaseService {
   User? get currentUser => _auth.currentUser;
   String? get currentUserId => _auth.currentUser?.uid;
 
+  // ========== MONTHLY RESET SYSTEM ==========
+
+  /// Check and perform monthly reset if needed (call this on app startup)
+  Future<void> checkAndPerformMonthlyReset() async {
+    print('=== MONTHLY RESET CHECK START ===');
+    print('Current User ID: $currentUserId');
+
+    if (currentUserId == null) {
+      print('No user ID - skipping reset');
+      return;
+    }
+
+    try {
+      print('Checking if monthly reset is needed...');
+
+      final shouldReset = await _shouldResetThisMonth();
+      print('Should reset? $shouldReset');
+
+      if (shouldReset) {
+        print('✅ PERFORMING MONTHLY RESET...');
+        await _performMonthlyReset();
+        await _saveResetTimestamp();
+        print('✅ Monthly reset completed successfully');
+      } else {
+        print('⏭️ Monthly reset already performed this month');
+      }
+    } catch (e, stackTrace) {
+      print('❌ Error during monthly reset check: $e');
+      print('Stack trace: $stackTrace');
+      // Don't throw - allow app to continue even if reset fails
+    }
+
+    print('=== MONTHLY RESET CHECK END ===');
+  }
+
+  /// Check if reset has been done this month
+  Future<bool> _shouldResetThisMonth() async {
+    try {
+      print('Fetching reset tracker document...');
+      final doc = await _firestore
+          .collection('reset_tracker')
+          .doc(currentUserId)
+          .get();
+
+      print('Reset tracker exists: ${doc.exists}');
+
+      if (!doc.exists) {
+        print('No reset record found - first time reset needed');
+        return true;
+      }
+
+      final data = doc.data();
+      print('Reset tracker data: $data');
+
+      final lastResetStr = data?['lastResetDate'] as String?;
+
+      if (lastResetStr == null) {
+        print('Invalid reset record - reset needed');
+        return true;
+      }
+
+      final lastReset = DateTime.parse(lastResetStr);
+      final now = DateTime.now();
+
+      // Check if we're in a different month/year
+      final isDifferentMonth =
+          lastReset.year != now.year || lastReset.month != now.month;
+
+      print('Last reset: ${lastReset.year}-${lastReset.month}-${lastReset.day}');
+      print('Current date: ${now.year}-${now.month}-${now.day}');
+      print('Is different month? $isDifferentMonth');
+
+      return isDifferentMonth;
+    } catch (e, stackTrace) {
+      print('Error checking reset status: $e');
+      print('Stack trace: $stackTrace');
+      return true; // If error, assume reset is needed
+    }
+  }
+
+  /// Perform the actual monthly reset
+  Future<void> _performMonthlyReset() async {
+    try {
+      // Delete budgets and alert rules
+      await _deleteMonthlyBudgets();
+      await _deleteAlertRules();
+
+      print('Monthly reset operations completed');
+    } catch (e) {
+      print('Error performing monthly reset: $e');
+      rethrow;
+    }
+  }
+
+  /// Delete all monthly budgets
+  Future<void> _deleteMonthlyBudgets() async {
+    try {
+      print('🗑️ Starting to delete monthly budgets...');
+      print('Querying budgets for user: $currentUserId');
+
+      final budgetsSnapshot = await _firestore
+          .collection('budgets')
+          .doc(currentUserId)
+          .collection('userBudgets')
+          .where('period', isEqualTo: 'monthly')
+          .get();
+
+      print('Found ${budgetsSnapshot.docs.length} monthly budgets');
+
+      if (budgetsSnapshot.docs.isEmpty) {
+        print('No monthly budgets found to delete');
+        return;
+      }
+
+      WriteBatch batch = _firestore.batch();
+      int deleteCount = 0;
+
+      for (var doc in budgetsSnapshot.docs) {
+        print('Deleting budget: ${doc.id} - ${doc.data()['category']}');
+        batch.delete(doc.reference);
+        deleteCount++;
+      }
+
+      await batch.commit();
+      print('✅ Deleted $deleteCount monthly budgets successfully');
+    } catch (e, stackTrace) {
+      print('❌ Error deleting monthly budgets: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  /// Delete all alert rules
+  Future<void> _deleteAlertRules() async {
+    try {
+      print('🗑️ Starting to delete alert rules...');
+      print('Querying rules for user: $currentUserId');
+
+      final rulesSnapshot = await _firestore
+          .collection('rules')
+          .doc(currentUserId)
+          .collection('userRules')
+          .where('type', isEqualTo: 'alert')
+          .get();
+
+      print('Found ${rulesSnapshot.docs.length} alert rules');
+
+      if (rulesSnapshot.docs.isEmpty) {
+        print('No alert rules found to delete');
+        return;
+      }
+
+      WriteBatch batch = _firestore.batch();
+      int deleteCount = 0;
+
+      for (var doc in rulesSnapshot.docs) {
+        print('Deleting rule: ${doc.id} - ${doc.data()['name']}');
+        batch.delete(doc.reference);
+        deleteCount++;
+      }
+
+      await batch.commit();
+      print('✅ Deleted $deleteCount alert rules successfully');
+    } catch (e, stackTrace) {
+      print('❌ Error deleting alert rules: $e');
+      print('Stack trace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  /// Save the reset timestamp
+  Future<void> _saveResetTimestamp() async {
+    try {
+      await _firestore
+          .collection('reset_tracker')
+          .doc(currentUserId)
+          .set({
+        'lastResetDate': DateTime.now().toIso8601String(),
+        'lastResetMonth': DateTime.now().month,
+        'lastResetYear': DateTime.now().year,
+      }, SetOptions(merge: true));
+
+      print('Reset timestamp saved');
+    } catch (e) {
+      print('Error saving reset timestamp: $e');
+    }
+  }
+
+  /// Optional: Reset weekly budgets (call this weekly)
+  Future<void> resetWeeklyBudgets() async {
+    try {
+      print('Resetting weekly budgets...');
+
+      final budgetsSnapshot = await _firestore
+          .collection('budgets')
+          .doc(currentUserId)
+          .collection('userBudgets')
+          .where('period', isEqualTo: 'weekly')
+          .get();
+
+      if (budgetsSnapshot.docs.isEmpty) {
+        print('No weekly budgets found to reset');
+        return;
+      }
+
+      final now = DateTime.now();
+      final weekStart = now.subtract(Duration(days: now.weekday - 1));
+      final weekEnd = weekStart.add(const Duration(days: 6));
+
+      WriteBatch batch = _firestore.batch();
+      int resetCount = 0;
+
+      for (var doc in budgetsSnapshot.docs) {
+        final budget = BudgetModel.fromMap(doc.data());
+
+        // Only reset if week has ended
+        if (now.isAfter(budget.endDate)) {
+          final resetBudget = budget.copyWith(
+            spent: 0.0,
+            startDate: weekStart,
+            endDate: weekEnd,
+          );
+
+          batch.update(doc.reference, resetBudget.toMap());
+          resetCount++;
+        }
+      }
+
+      if (resetCount > 0) {
+        await batch.commit();
+        print('Reset $resetCount weekly budgets');
+      }
+    } catch (e) {
+      print('Error resetting weekly budgets: $e');
+    }
+  }
+
   // ========== AUTHENTICATION ==========
 
   Future<User?> signUp(String email, String password, String fullName,
@@ -399,32 +636,56 @@ class FirebaseService {
     }
   }
 
-  /// Recalculate all alert-linked budgets when income type changes
-  Future<void> recalculateBudgetsForIncomeType(String newIncomeType) async {
+  Future<void> recalculateBudgetsForIncomeType(String incomeType) async {
     try {
-      if (currentUserId == null) return;
-
-      final user = await getUserProfile(currentUserId!);
-      if (user == null) return;
-
-      // Get all allocation rules
-      final allocationRules = await _firestore
-          .collection('rules')
+      final budgetsSnapshot = await _firestore
+          .collection('budgets')
           .doc(currentUserId)
-          .collection('userRules')
-          .where('type', isEqualTo: 'allocation')
-          .where('isActive', isEqualTo: true)
+          .collection('userBudgets')
           .get();
 
-      // Recreate budgets from allocation rules
-      for (var doc in allocationRules.docs) {
-        final rule = RuleModel.fromMap(doc.data());
-        await _createBudgetFromAllocation(rule, user);
+      WriteBatch batch = _firestore.batch();
+      DateTime now = DateTime.now();
+
+      for (var doc in budgetsSnapshot.docs) {
+        final budget = BudgetModel.fromMap(doc.data());
+        String newPeriod;
+        DateTime newEndDate;
+        double newAmount = budget.amount;
+
+        if (incomeType == 'variable' || incomeType == 'hybrid') {
+          // Convert to weekly
+          newPeriod = 'weekly';
+          newEndDate = now.add(const Duration(days: 7));
+
+          // If converting from monthly, divide by 4
+          if (budget.period == 'monthly') {
+            newAmount = budget.amount / 4;
+          }
+        } else {
+          // Convert to monthly
+          newPeriod = 'monthly';
+          newEndDate = DateTime(now.year, now.month + 1, 0);
+
+          // If converting from weekly, multiply by 4
+          if (budget.period == 'weekly') {
+            newAmount = budget.amount * 4;
+          }
+        }
+
+        final updatedBudget = budget.copyWith(
+          period: newPeriod,
+          amount: newAmount,
+          endDate: newEndDate,
+        );
+
+        batch.update(doc.reference, updatedBudget.toMap());
       }
 
-      print('Successfully recalculated all budgets for income type: $newIncomeType');
+      await batch.commit();
+      print('Recalculated ${budgetsSnapshot.docs.length} budgets for $incomeType earner');
     } catch (e) {
-      print('Error recalculating budgets for income type: $e');
+      print('Error recalculating budgets: $e');
     }
   }
 
@@ -441,43 +702,37 @@ class FirebaseService {
       String id = docRef.id;
       await docRef.update({'id': id});
 
-      // Initialize progress tracking if it's a savings goal
-      if (rule.type == 'savings' && rule.isPiggyBank != true && currentUserId != null) {
-        await _firestore.collection('progress_milestones').doc(id).set({
-          'lastMilestone': 0.0,
-          'timestamp': DateTime.now().toIso8601String(),
-        });
-      }
-      // CREATE BUDGET IF AUTO-ALLOCATION RULE
-      if (rule.type == 'allocation' && currentUserId != null) {  // ✅ CORRECT!
-        print('DEBUG: Creating budget from allocation rule...');
+      // If it's an alert rule, create a budget for it
+      if (rule.type == 'alert') {
         final user = await getUserProfile(currentUserId!);
         if (user != null) {
-          await _createBudgetFromAllocation(rule, user);
-          print('DEBUG: Budget creation completed');
-        } else {
-          print('ERROR: User profile not found');
+          final updatedRule = rule.copyWith(id: id);
+          await _createBudgetFromAllocation(updatedRule, user);
         }
       }
     } catch (e) {
       print('Error adding rule: $e');
+      rethrow;
     }
   }
 
-  Stream<List<RuleModel>> getRules() {
+  Stream<List<RuleModel>> getRules({String? type}) {
     if (currentUserId == null) {
       return Stream.value([]);
     }
 
-    return _firestore
+    Query query = _firestore
         .collection('rules')
         .doc(currentUserId)
-        .collection('userRules')
-        .orderBy('priority', descending: true)
-        .snapshots()
-        .map((snapshot) {
+        .collection('userRules');
+
+    if (type != null) {
+      query = query.where('type', isEqualTo: type);
+    }
+
+    return query.snapshots().map((snapshot) {
       return snapshot.docs
-          .map((doc) => RuleModel.fromMap(doc.data()))
+          .map((doc) => RuleModel.fromMap(doc.data() as Map<String, dynamic>))
           .toList();
     });
   }
@@ -491,21 +746,11 @@ class FirebaseService {
           .doc(rule.id)
           .update(rule.toMap());
 
-      // Check if progress milestone reached for savings goals
-      if (rule.type == 'savings' && rule.isPiggyBank != true && currentUserId != null) {
-        final alertService = AlertService(currentUserId!);
-        await alertService.checkSavingsGoalProgress(rule);
-      }
-
-      // UPDATE BUDGET IF AUTO-ALLOCATION RULE
-      if (rule.type == 'allocation' && currentUserId != null) {  // ✅ CORRECT!
-        print('DEBUG: Updating budget from allocation rule...');
+      // If it's an alert rule, update its linked budget
+      if (rule.type == 'alert') {
         final user = await getUserProfile(currentUserId!);
         if (user != null) {
           await _createBudgetFromAllocation(rule, user);
-          print('DEBUG: Budget update completed');
-        } else {
-          print('ERROR: User profile not found');
         }
       }
     } catch (e) {
@@ -516,296 +761,71 @@ class FirebaseService {
 
   Future<void> deleteRule(String ruleId) async {
     try {
-      final ruleDoc = await _firestore
+      // Get the rule to check its type
+      final doc = await _firestore
           .collection('rules')
           .doc(currentUserId)
           .collection('userRules')
           .doc(ruleId)
           .get();
 
-      if (ruleDoc.exists) {
-        final rule = RuleModel.fromMap(ruleDoc.data()!);
+      if (doc.exists) {
+        final rule = RuleModel.fromMap(doc.data()!);
 
-        // Reset budget if it's an allocation rule
-        if (rule.type == 'allocation') {
+        // If it's an alert rule, reset its linked budget
+        if (rule.type == 'alert') {
           await _resetBudgetFromAllocation(ruleId);
         }
-      }
 
-      await _firestore
-          .collection('rules')
-          .doc(currentUserId)
-          .collection('userRules')
-          .doc(ruleId)
-          .delete();
+        await doc.reference.delete();
+      }
     } catch (e) {
       print('Error deleting rule: $e');
       rethrow;
     }
   }
 
-  // ========== CATEGORY SPENDING & ALERTS ==========
-
-  Stream<Map<String, double>> getCategorySpending(String userId) {
-    return _firestore
-        .collection('transactions')
-        .doc(userId)
-        .collection('userTransactions')
-        .where('type', isEqualTo: 'expense')
-        .snapshots()
-        .map((snapshot) {
-      final Map<String, double> categoryTotals = {};
-
-      for (var doc in snapshot.docs) {
-        final transaction = TransactionModel.fromMap(doc.data());
-        final category = transaction.category;
-
-        // Use actual expense amount (excluding savings allocation)
-        categoryTotals[category] = (categoryTotals[category] ?? 0.0) + transaction.actualExpenseAmount;
-      }
-
-      return categoryTotals;
-    });
-  }
-
-  Future<void> checkAllAlerts() async {
-    if (currentUserId == null) {
-      print('Cannot check alerts: No user logged in');
-      return;
-    }
-
-    try {
-      print('Checking all alerts for user: $currentUserId');
-      final alertService = AlertService(currentUserId!);
-      await alertService.checkAndTriggerAlerts();
-      print('All alerts checked successfully');
-    } catch (e) {
-      print('ERROR checking all alerts: $e');
-      print('Stack trace: ${StackTrace.current}');
-    }
-  }
-
-  Future<Map<String, dynamic>> getAlertSummary() async {
-    if (currentUserId == null) {
-      return {'totalAlerts': 0, 'triggeredAlerts': 0, 'categories': []};
-    }
-
-    try {
-      // Get all active alert rules
-      final rulesSnapshot = await _firestore
-          .collection('rules')
-          .doc(currentUserId)
-          .collection('userRules')
-          .where('type', isEqualTo: 'alert')
-          .where('isActive', isEqualTo: true)
-          .get();
-
-      final alertService = AlertService(currentUserId!);
-      final categorySpending = await alertService.getCurrentCategorySpending();
-
-      int triggeredCount = 0;
-      List<String> triggeredCategories = [];
-
-      for (var doc in rulesSnapshot.docs) {
-        final rule = RuleModel.fromMap(doc.data());
-        final category = rule.conditions['category'] as String?;
-        final threshold = (rule.conditions['threshold'] as num?)?.toDouble() ?? 0.0;
-
-        if (category != null) {
-          final spending = categorySpending[category] ?? 0.0;
-          if (spending >= threshold) {
-            triggeredCount++;
-            if (!triggeredCategories.contains(category)) {
-              triggeredCategories.add(category);
-            }
-          }
-        }
-      }
-
-      return {
-        'totalAlerts': rulesSnapshot.docs.length,
-        'triggeredAlerts': triggeredCount,
-        'categories': triggeredCategories,
-      };
-    } catch (e) {
-      print('ERROR getting alert summary: $e');
-      return {'totalAlerts': 0, 'triggeredAlerts': 0, 'categories': []};
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getAlertHistory({int limit = 10}) async {
-    if (currentUserId == null) return [];
-
-    final snapshot = await _firestore
+  Future<void> toggleRuleStatus(String ruleId, bool isActive) async {
+    await _firestore
         .collection('rules')
         .doc(currentUserId)
         .collection('userRules')
-        .where('type', isEqualTo: 'alert')
-        .where('lastTriggered', isNull: false)
-        .orderBy('lastTriggered', descending: true)
-        .limit(limit)
-        .get();
-
-    List<Map<String, dynamic>> history = [];
-
-    for (var doc in snapshot.docs) {
-      final rule = RuleModel.fromMap(doc.data());
-      if (rule.lastTriggered != null) {
-        history.add({
-          'rule': rule,
-          'triggeredAt': rule.lastTriggered,
-          'category': rule.conditions['category'],
-          'threshold': rule.conditions['threshold'],
-        });
-      }
-    }
-
-    return history;
-  }
-
-  Future<void> dismissAlert(String ruleId, Duration duration) async {
-    await _firestore.collection('alert_dismissals').doc(ruleId).set({
-      'userId': currentUserId,
-      'dismissedUntil': DateTime.now().add(duration).toIso8601String(),
-    });
-  }
-
-  Future<bool> isAlertDismissed(String ruleId) async {
-    final doc = await _firestore
-        .collection('alert_dismissals')
         .doc(ruleId)
-        .get();
-
-    if (!doc.exists) return false;
-
-    final dismissedUntil = doc.data()?['dismissedUntil'] as String?;
-    if (dismissedUntil == null) return false;
-
-    final dismissTime = DateTime.parse(dismissedUntil);
-    return DateTime.now().isBefore(dismissTime);
+        .update({'isActive': isActive});
   }
 
-  Future<Map<String, dynamic>> getAlertStatistics() async {
-    if (currentUserId == null) return {};
+  // ========== SAVINGS GOALS ==========
 
-    final now = DateTime.now();
-    final thirtyDaysAgo = now.subtract(const Duration(days: 30));
-
-    final snapshot = await _firestore
-        .collection('rules')
-        .doc(currentUserId)
-        .collection('userRules')
-        .where('type', isEqualTo: 'alert')
-        .get();
-
-    int totalAlerts = snapshot.docs.length;
-    int activeAlerts = 0;
-    int triggeredInLast30Days = 0;
-    Map<String, int> categoryBreakdown = {};
-
-    for (var doc in snapshot.docs) {
-      final rule = RuleModel.fromMap(doc.data());
-
-      if (rule.isActive) activeAlerts++;
-
-      if (rule.lastTriggered != null &&
-          rule.lastTriggered!.isAfter(thirtyDaysAgo)) {
-        triggeredInLast30Days++;
-      }
-
-      final category = rule.conditions['category'] as String?;
-      if (category != null) {
-        categoryBreakdown[category] = (categoryBreakdown[category] ?? 0) + 1;
-      }
-    }
-
-    return {
-      'totalAlerts': totalAlerts,
-      'activeAlerts': activeAlerts,
-      'triggeredInLast30Days': triggeredInLast30Days,
-      'categoryBreakdown': categoryBreakdown,
-    };
-  }
-
-  // ========== SAVINGS ==========
-
-  Future<void> updateSavingsProgress(String ruleId, double amountToAdd) async {
+  Future<void> updateSavingsProgress(String ruleId, double amount) async {
     try {
-      final ruleDoc = await _firestore
+      final doc = await _firestore
           .collection('rules')
           .doc(currentUserId)
           .collection('userRules')
           .doc(ruleId)
           .get();
 
-      if (!ruleDoc.exists) return;
+      if (doc.exists) {
+        final rule = RuleModel.fromMap(doc.data()!);
+        final newAmount = (rule.currentAmount ?? 0) + amount;
 
-      final rule = RuleModel.fromMap(ruleDoc.data()!);
-      final newAmount = (rule.currentAmount ?? 0.0) + amountToAdd;
+        await _firestore
+            .collection('rules')
+            .doc(currentUserId)
+            .collection('userRules')
+            .doc(ruleId)
+            .update({'currentAmount': newAmount});
 
-      await _firestore
-          .collection('rules')
-          .doc(currentUserId)
-          .collection('userRules')
-          .doc(ruleId)
-          .update({
-        'currentAmount': newAmount,
-      });
+        // Check if we should notify about progress
+        final alertService = AlertService(currentUserId!);
+        await alertService.checkSavingsGoalProgress(rule.copyWith(currentAmount: newAmount));
+      }
     } catch (e) {
       print('Error updating savings progress: $e');
-      rethrow;
     }
   }
 
-  Future<double> getTotalSavings(String userId) async {
-    try {
-      final snapshot = await _firestore
-          .collection('transactions')
-          .doc(userId)
-          .collection('userTransactions')
-          .get();
-
-      double total = 0.0;
-      for (var doc in snapshot.docs) {
-        final transaction = TransactionModel.fromMap(doc.data());
-        if (transaction.hasSavingsAllocation) {
-          total += transaction.savingsAllocation!;
-        }
-      }
-
-      return total;
-    } catch (e) {
-      print('Error getting total savings: $e');
-      return 0.0;
-    }
-  }
-
-  Future<Map<String, double>> getSavingsByGoal(String userId) async {
-    try {
-      final snapshot = await _firestore
-          .collection('transactions')
-          .doc(userId)
-          .collection('userTransactions')
-          .get();
-
-      final Map<String, double> goalTotals = {};
-
-      for (var doc in snapshot.docs) {
-        final transaction = TransactionModel.fromMap(doc.data());
-        if (transaction.hasSavingsAllocation && transaction.savingsGoalName != null) {
-          final goalName = transaction.savingsGoalName!;
-          goalTotals[goalName] = (goalTotals[goalName] ?? 0.0) + transaction.savingsAllocation!;
-        }
-      }
-
-      return goalTotals;
-    } catch (e) {
-      print('Error getting savings by goal: $e');
-      return {};
-    }
-  }
-
-  // ========== NOTIFICATIONS & REMINDERS ==========
+  // ========== ALERT PROCESSING ==========
 
   Future<void> processAllocationWithNotification({
     required RuleModel rule,
@@ -924,47 +944,6 @@ class FirebaseService {
 
   // ========== PRIVATE HELPER METHODS ==========
 
-  // Future<void> _initializeDefaultBudgets(String uid, String incomeType) async {
-  //   List<Map<String, dynamic>> defaultCategories = [
-  //     {'name': 'Food', 'icon': '🍔', 'amount': 20000},
-  //     {'name': 'Transport', 'icon': '🚗', 'amount': 15000},
-  //     {'name': 'Data', 'icon': '💾', 'amount': 10000},
-  //     {'name': 'Entertainment', 'icon': '🎬', 'amount': 10000},
-  //     {'name': 'Utilities', 'icon': '💡', 'amount': 20000},
-  //   ];
-  //
-  //   String period = incomeType == 'variable' ? 'weekly' : 'monthly';
-  //   DateTime now = DateTime.now();
-  //   DateTime endDate = period == 'weekly'
-  //       ? now.add(const Duration(days: 7))
-  //       : DateTime(now.year, now.month + 1, 0);
-  //
-  //   WriteBatch batch = _firestore.batch();
-  //
-  //   for (var category in defaultCategories) {
-  //     BudgetModel budget = BudgetModel(
-  //       id: '',
-  //       userId: uid,
-  //       category: category['name'],
-  //       amount: category['amount'].toDouble(),
-  //       period: period,
-  //       startDate: now,
-  //       endDate: endDate,
-  //     );
-  //
-  //     DocumentReference docRef = _firestore
-  //         .collection('budgets')
-  //         .doc(uid)
-  //         .collection('userBudgets')
-  //         .doc();
-  //
-  //     budget.id = docRef.id;
-  //     batch.set(docRef, budget.toMap());
-  //   }
-  //
-  //   await batch.commit();
-  // }
-
   Future<void> _updateBudgetSpent(String category, double amount) async {
     try {
       QuerySnapshot snapshot = await _firestore
@@ -985,62 +964,4 @@ class FirebaseService {
       print('Error updating budget spent: $e');
     }
   }
-
-//   Future<void> _applyAllocationRules(TransactionModel transaction) async {
-//     try {
-//       QuerySnapshot snapshot = await _firestore
-//           .collection('rules')
-//           .doc(currentUserId)
-//           .collection('userRules')
-//           .where('type', isEqualTo: 'allocation')
-//           .where('isActive', isEqualTo: true)
-//           .orderBy('priority', descending: true)
-//           .get();
-//
-//       List<RuleModel> rules = snapshot.docs
-//           .map((doc) => RuleModel.fromMap(doc.data() as Map<String, dynamic>))
-//           .toList();
-//
-//       for (RuleModel rule in rules) {
-//         final minAmount = rule.conditions['minAmount'] as num? ?? 0;
-//
-//         if (transaction.amount >= minAmount) {
-//           final allocatePercent = rule.actions['allocateToSavings'] as num? ?? 0;
-//           final savingsAmount = transaction.amount * (allocatePercent / 100);
-//
-//           // Create expense transaction with savings allocation
-//           TransactionModel allocationTransaction = TransactionModel(
-//             id: '',
-//             userId: currentUserId!,
-//             type: 'expense',
-//             category: 'Savings',
-//             amount: savingsAmount,
-//             description: 'Auto-allocated from ${transaction.description}',
-//             date: DateTime.now(),
-//             savingsAllocation: savingsAmount,
-//             savingsGoalId: rule.id,
-//             savingsGoalName: 'Auto-Allocation',
-//           );
-//
-//           await addTransaction(allocationTransaction);
-//
-//           await _firestore
-//               .collection('rules')
-//               .doc(currentUserId)
-//               .collection('userRules')
-//               .doc(rule.id)
-//               .update({'lastTriggered': DateTime.now().toIso8601String()});
-//
-//           // Send notification
-//           await processAllocationWithNotification(
-//             rule: rule,
-//             incomeAmount: transaction.amount,
-//             allocatedAmount: savingsAmount,
-//           );
-//         }
-//       }
-//     } catch (e) {
-//       print('Error applying allocation rules: $e');
-//     }
-//   }
 }
