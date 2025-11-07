@@ -15,7 +15,7 @@ class FirebaseService {
   User? get currentUser => _auth.currentUser;
   String? get currentUserId => _auth.currentUser?.uid;
 
-  // ========== MONTHLY RESET SYSTEM ==========
+  // ========== IMPROVED MONTHLY RESET SYSTEM ==========
 
   /// Check and perform monthly reset if needed (call this on app startup)
   Future<void> checkAndPerformMonthlyReset() async {
@@ -95,12 +95,26 @@ class FirebaseService {
     }
   }
 
-  /// Perform the actual monthly reset
+  /// Perform the actual monthly reset - IMPROVED VERSION
   Future<void> _performMonthlyReset() async {
     try {
-      // Delete budgets and alert rules
-      await _deleteMonthlyBudgets();
-      await _deleteAlertRules();
+      // Archive previous month's data (optional but recommended)
+      await _archivePreviousMonthData();
+      
+      // Reset budgets instead of deleting them
+      await _resetMonthlyBudgets();
+      
+      // Disable alert rules instead of deleting them
+      await _disableAlertRules();
+      
+      // Reset savings tracking for non-piggybank savings goals
+      await _resetMonthlySavingsTracking();
+
+      // Send notification to user about reset
+      await NotificationService.sendReminderNotification(
+        title: '📅 New Month Started',
+        body: 'Your budgets have been reset. Review and enable your alert rules for this month.',
+      );
 
       print('Monthly reset operations completed');
     } catch (e) {
@@ -109,10 +123,62 @@ class FirebaseService {
     }
   }
 
-  /// Delete all monthly budgets
-  Future<void> _deleteMonthlyBudgets() async {
+  /// Archive previous month's data for historical tracking
+  Future<void> _archivePreviousMonthData() async {
     try {
-      print('🗑️ Starting to delete monthly budgets...');
+      print('📦 Archiving previous month data...');
+      
+      final now = DateTime.now();
+      final lastMonth = DateTime(now.year, now.month - 1, 1);
+      final archiveId = '${lastMonth.year}_${lastMonth.month.toString().padLeft(2, '0')}';
+
+      // Get current month's budget performance
+      final budgetsSnapshot = await _firestore
+          .collection('budgets')
+          .doc(currentUserId)
+          .collection('userBudgets')
+          .where('period', isEqualTo: 'monthly')
+          .get();
+
+      if (budgetsSnapshot.docs.isNotEmpty) {
+        Map<String, dynamic> archiveData = {
+          'userId': currentUserId,
+          'month': lastMonth.month,
+          'year': lastMonth.year,
+          'archivedAt': DateTime.now().toIso8601String(),
+          'budgets': [],
+        };
+
+        for (var doc in budgetsSnapshot.docs) {
+          final budget = BudgetModel.fromMap(doc.data());
+          archiveData['budgets'].add({
+            'category': budget.category,
+            'budgetAmount': budget.amount,
+            'actualSpent': budget.spent,
+            'percentUsed': budget.percentSpent,
+          });
+        }
+
+        // Save archive
+        await _firestore
+            .collection('budget_archives')
+            .doc(currentUserId)
+            .collection('monthly_archives')
+            .doc(archiveId)
+            .set(archiveData);
+
+        print('✅ Archived ${budgetsSnapshot.docs.length} budgets');
+      }
+    } catch (e) {
+      print('⚠️ Error archiving data (non-critical): $e');
+      // Don't throw - archiving is optional
+    }
+  }
+
+  /// Reset all monthly budgets - IMPROVED VERSION
+  Future<void> _resetMonthlyBudgets() async {
+    try {
+      print('🔄 Starting to reset monthly budgets...');
       print('Querying budgets for user: $currentUserId');
 
       final budgetsSnapshot = await _firestore
@@ -125,32 +191,45 @@ class FirebaseService {
       print('Found ${budgetsSnapshot.docs.length} monthly budgets');
 
       if (budgetsSnapshot.docs.isEmpty) {
-        print('No monthly budgets found to delete');
+        print('No monthly budgets found to reset');
         return;
       }
 
       WriteBatch batch = _firestore.batch();
-      int deleteCount = 0;
+      int resetCount = 0;
+
+      final now = DateTime.now();
+      final monthStart = DateTime(now.year, now.month, 1);
+      final monthEnd = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
 
       for (var doc in budgetsSnapshot.docs) {
-        print('Deleting budget: ${doc.id} - ${doc.data()['category']}');
-        batch.delete(doc.reference);
-        deleteCount++;
+        final budget = BudgetModel.fromMap(doc.data());
+        
+        // Reset budget: keep configuration but reset spending
+        final resetBudget = budget.copyWith(
+          spent: 0.0,  // Reset spending to 0
+          startDate: monthStart,
+          endDate: monthEnd,
+        );
+
+        print('Resetting budget: ${budget.category} (was ${budget.spent}/${budget.amount})');
+        batch.update(doc.reference, resetBudget.toMap());
+        resetCount++;
       }
 
       await batch.commit();
-      print('✅ Deleted $deleteCount monthly budgets successfully');
+      print('✅ Reset $resetCount monthly budgets successfully');
     } catch (e, stackTrace) {
-      print('❌ Error deleting monthly budgets: $e');
+      print('❌ Error resetting monthly budgets: $e');
       print('Stack trace: $stackTrace');
       rethrow;
     }
   }
 
-  /// Delete all alert rules
-  Future<void> _deleteAlertRules() async {
+  /// Disable all alert rules - IMPROVED VERSION
+  Future<void> _disableAlertRules() async {
     try {
-      print('🗑️ Starting to delete alert rules...');
+      print('🔕 Starting to disable alert rules...');
       print('Querying rules for user: $currentUserId');
 
       final rulesSnapshot = await _firestore
@@ -163,25 +242,104 @@ class FirebaseService {
       print('Found ${rulesSnapshot.docs.length} alert rules');
 
       if (rulesSnapshot.docs.isEmpty) {
-        print('No alert rules found to delete');
+        print('No alert rules found to disable');
         return;
       }
 
       WriteBatch batch = _firestore.batch();
-      int deleteCount = 0;
+      int disableCount = 0;
 
       for (var doc in rulesSnapshot.docs) {
-        print('Deleting rule: ${doc.id} - ${doc.data()['name']}');
-        batch.delete(doc.reference);
-        deleteCount++;
+        final rule = RuleModel.fromMap(doc.data());
+        
+        // Check if we should auto-enable (based on user preference)
+        bool shouldAutoEnable = await _shouldAutoEnableAlert(rule);
+        
+        // Update rule: disable by default or auto-enable based on preference
+        final updates = {
+          'isActive': shouldAutoEnable,
+          'lastTriggered': null, // Clear last triggered
+          'monthlyResetDate': DateTime.now().toIso8601String(),
+        };
+
+        print('${shouldAutoEnable ? "Auto-enabling" : "Disabling"} alert: ${rule.name}');
+        batch.update(doc.reference, updates);
+        disableCount++;
       }
 
       await batch.commit();
-      print('✅ Deleted $deleteCount alert rules successfully');
+      print('✅ Processed $disableCount alert rules');
     } catch (e, stackTrace) {
-      print('❌ Error deleting alert rules: $e');
+      print('❌ Error disabling alert rules: $e');
       print('Stack trace: $stackTrace');
       rethrow;
+    }
+  }
+
+  /// Check if an alert should be auto-enabled based on user preferences
+  Future<bool> _shouldAutoEnableAlert(RuleModel rule) async {
+    // Check if rule has auto-enable flag in metadata
+    final autoEnable = rule.conditions['autoEnableMonthly'] ?? false;
+    
+    // You can also check user-level preferences here
+    final userDoc = await _firestore
+        .collection('users')
+        .doc(currentUserId)
+        .get();
+    
+    if (userDoc.exists) {
+      final userData = userDoc.data();
+      final globalAutoEnable = userData?['autoEnableAlertsMonthly'] ?? false;
+      return autoEnable || globalAutoEnable;
+    }
+    
+    return autoEnable;
+  }
+
+  /// Reset monthly savings tracking (optional)
+  Future<void> _resetMonthlySavingsTracking() async {
+    try {
+      print('🎯 Resetting monthly savings tracking...');
+      
+      final savingsRulesSnapshot = await _firestore
+          .collection('rules')
+          .doc(currentUserId)
+          .collection('userRules')
+          .where('type', isEqualTo: 'savings')
+          .get();
+
+      if (savingsRulesSnapshot.docs.isEmpty) {
+        print('No savings rules found');
+        return;
+      }
+
+      WriteBatch batch = _firestore.batch();
+      int resetCount = 0;
+
+      for (var doc in savingsRulesSnapshot.docs) {
+        final rule = RuleModel.fromMap(doc.data());
+        
+        // Only reset non-piggybank monthly savings goals
+        if (rule.isPiggyBank != true && 
+            rule.conditions['resetMonthly'] == true) {
+          
+          batch.update(doc.reference, {
+            'currentAmount': 0.0,
+            'monthlyResetDate': DateTime.now().toIso8601String(),
+          });
+          
+          print('Reset savings goal: ${rule.goalName}');
+          resetCount++;
+        }
+      }
+
+      if (resetCount > 0) {
+        await batch.commit();
+        print('✅ Reset $resetCount monthly savings goals');
+      }
+    } catch (e) {
+      print('⚠️ Error resetting savings tracking (non-critical): $e');
+      // Don't throw - this is optional
     }
   }
 
@@ -195,6 +353,7 @@ class FirebaseService {
         'lastResetDate': DateTime.now().toIso8601String(),
         'lastResetMonth': DateTime.now().month,
         'lastResetYear': DateTime.now().year,
+        'resetType': 'soft', // Indicates new reset method
       }, SetOptions(merge: true));
 
       print('Reset timestamp saved');
@@ -203,7 +362,99 @@ class FirebaseService {
     }
   }
 
-  /// Optional: Reset weekly budgets (call this weekly)
+  /// Manually enable all alert rules (for user action)
+  Future<void> enableAllAlertRules() async {
+    try {
+      print('✅ Enabling all alert rules...');
+
+      final rulesSnapshot = await _firestore
+          .collection('rules')
+          .doc(currentUserId)
+          .collection('userRules')
+          .where('type', isEqualTo: 'alert')
+          .get();
+
+      WriteBatch batch = _firestore.batch();
+      
+      for (var doc in rulesSnapshot.docs) {
+        batch.update(doc.reference, {'isActive': true});
+      }
+
+      await batch.commit();
+      print('Enabled ${rulesSnapshot.docs.length} alert rules');
+    } catch (e) {
+      print('Error enabling alert rules: $e');
+      rethrow;
+    }
+  }
+
+  /// Get archived budget data for analytics
+  Future<List<Map<String, dynamic>>> getArchivedBudgets({
+    int? year,
+    int? month,
+  }) async {
+    try {
+      Query query = _firestore
+          .collection('budget_archives')
+          .doc(currentUserId)
+          .collection('monthly_archives');
+
+      if (year != null) {
+        query = query.where('year', isEqualTo: year);
+      }
+      if (month != null) {
+        query = query.where('month', isEqualTo: month);
+      }
+
+      final snapshot = await query.get();
+      return snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+    } catch (e) {
+      print('Error getting archived budgets: $e');
+      return [];
+    }
+  }
+
+  /// Get monthly spending trends from archives
+  Future<Map<String, List<double>>> getSpendingTrends({
+    required int monthsBack,
+  }) async {
+    try {
+      Map<String, List<double>> trends = {};
+      final now = DateTime.now();
+
+      for (int i = 0; i < monthsBack; i++) {
+        final targetDate = DateTime(now.year, now.month - i, 1);
+        final archiveId = '${targetDate.year}_${targetDate.month.toString().padLeft(2, '0')}';
+
+        final doc = await _firestore
+            .collection('budget_archives')
+            .doc(currentUserId)
+            .collection('monthly_archives')
+            .doc(archiveId)
+            .get();
+
+        if (doc.exists) {
+          final data = doc.data()!;
+          final budgets = data['budgets'] as List;
+
+          for (var budget in budgets) {
+            final category = budget['category'] as String;
+            final spent = (budget['actualSpent'] as num).toDouble();
+
+            trends[category] ??= [];
+            trends[category]!.insert(0, spent); // Insert at beginning for chronological order
+          }
+        }
+      }
+
+      return trends;
+    } catch (e) {
+      print('Error getting spending trends: $e');
+      return {};
+    }
+  }
+
+  /// Reset weekly budgets (call this weekly) - IMPROVED VERSION
   Future<void> resetWeeklyBudgets() async {
     try {
       print('Resetting weekly budgets...');
@@ -222,7 +473,7 @@ class FirebaseService {
 
       final now = DateTime.now();
       final weekStart = now.subtract(Duration(days: now.weekday - 1));
-      final weekEnd = weekStart.add(const Duration(days: 6));
+      final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
 
       WriteBatch batch = _firestore.batch();
       int resetCount = 0;
@@ -232,6 +483,9 @@ class FirebaseService {
 
         // Only reset if week has ended
         if (now.isAfter(budget.endDate)) {
+          // Archive weekly data before reset (optional)
+          await _archiveWeeklyBudget(budget);
+
           final resetBudget = budget.copyWith(
             spent: 0.0,
             startDate: weekStart,
@@ -250,6 +504,37 @@ class FirebaseService {
     } catch (e) {
       print('Error resetting weekly budgets: $e');
     }
+  }
+
+  /// Archive weekly budget data
+  Future<void> _archiveWeeklyBudget(BudgetModel budget) async {
+    try {
+      final weekId = '${budget.startDate.year}_W${_getWeekNumber(budget.startDate)}';
+      
+      await _firestore
+          .collection('budget_archives')
+          .doc(currentUserId)
+          .collection('weekly_archives')
+          .doc(weekId)
+          .set({
+        'category': budget.category,
+        'budgetAmount': budget.amount,
+        'actualSpent': budget.spent,
+        'percentUsed': budget.percentSpent,
+        'startDate': budget.startDate.toIso8601String(),
+        'endDate': budget.endDate.toIso8601String(),
+        'archivedAt': DateTime.now().toIso8601String(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print('Error archiving weekly budget: $e');
+    }
+  }
+
+  /// Get week number for a date
+  int _getWeekNumber(DateTime date) {
+    final firstDayOfYear = DateTime(date.year, 1, 1);
+    final daysSinceFirstDay = date.difference(firstDayOfYear).inDays;
+    return ((daysSinceFirstDay + firstDayOfYear.weekday - 1) / 7).ceil();
   }
 
   // ========== AUTHENTICATION ==========
@@ -703,7 +988,7 @@ class FirebaseService {
       await docRef.update({'id': id});
 
       // If it's an alert rule, create a budget for it
-      if (rule.type == 'alert') {
+      if (rule.type == 'allocation') {
         final user = await getUserProfile(currentUserId!);
         if (user != null) {
           final updatedRule = rule.copyWith(id: id);
@@ -747,7 +1032,7 @@ class FirebaseService {
           .update(rule.toMap());
 
       // If it's an alert rule, update its linked budget
-      if (rule.type == 'alert') {
+      if (rule.type == 'allocation') {
         final user = await getUserProfile(currentUserId!);
         if (user != null) {
           await _createBudgetFromAllocation(rule, user);
@@ -773,7 +1058,7 @@ class FirebaseService {
         final rule = RuleModel.fromMap(doc.data()!);
 
         // If it's an alert rule, reset its linked budget
-        if (rule.type == 'alert') {
+        if (rule.type == 'allocation') {
           await _resetBudgetFromAllocation(ruleId);
         }
 

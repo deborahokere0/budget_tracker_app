@@ -259,16 +259,6 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: _handleSignOut,
             tooltip: 'Sign Out',
           ),
-          // In your settings/profile screen
-          ElevatedButton(
-            onPressed: () async {
-              await _firebaseService.checkAndPerformMonthlyReset();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Manual reset completed')),
-              );
-            },
-            child: const Text('Force Monthly Reset (Testing Only)'),
-          )
         ],
       )
           : null,

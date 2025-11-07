@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/currency_formatter.dart';
 import '../transactions/add_transaction_screen.dart';
 import 'budget_tracker_screen.dart';
+import 'monthly_reset_manager.dart';
 
 class FixedEarnerDashboard extends StatelessWidget {
   final UserModel user;
@@ -50,6 +51,10 @@ class FixedEarnerDashboard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  MonthlyResetManager(
+                    userId: user.uid,
+                    onAlertsEnabled: onRefresh,
+                  ),
                   // Header
                   Container(
                     padding: const EdgeInsets.all(20),

@@ -6,6 +6,7 @@ import '../../utils/currency_formatter.dart';
 import '../transactions/add_transaction_screen.dart';
 // import '../widgets/enhanced_alert_banner.dart';
 import 'budget_tracker_screen.dart';
+import 'monthly_reset_manager.dart';
 
 class HybridEarnerDashboard extends StatelessWidget {
   final UserModel user;
@@ -46,6 +47,10 @@ class HybridEarnerDashboard extends StatelessWidget {
               physics: const AlwaysScrollableScrollPhysics(),
               child: Column(
                 children: [
+                  MonthlyResetManager(
+                    userId: user.uid,
+                    onAlertsEnabled: onRefresh,
+                  ),
                   // Header Section
                   Container(
                     padding: const EdgeInsets.all(20),
