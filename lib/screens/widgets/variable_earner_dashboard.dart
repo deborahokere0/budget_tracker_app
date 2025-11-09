@@ -33,13 +33,15 @@ class VariableEarnerDashboard extends StatelessWidget {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final stats = snapshot.data ?? {
-              'netAmount': 0.0,
-              'weeklyIncome': 0.0,
-              'weeklyExpenses': 0.0,
-              'totalIncome': 0.0,
-              'totalExpenses': 0.0,
-            };
+            final stats =
+                snapshot.data ??
+                {
+                  'netAmount': 0.0,
+                  'weeklyIncome': 0.0,
+                  'weeklyExpenses': 0.0,
+                  'totalIncome': 0.0,
+                  'totalExpenses': 0.0,
+                };
 
             final netAmount = stats['netAmount'] ?? 0.0;
             final weeklyIncome = stats['weeklyIncome'] ?? 0.0;
@@ -47,13 +49,16 @@ class VariableEarnerDashboard extends StatelessWidget {
 
             // Calculate runway period
             final dailyBurn = weeklyExpenses / 7;
-            final runwayDays = dailyBurn > 0 ? (netAmount / dailyBurn).round() : 0;
+            final runwayDays = dailyBurn > 0
+                ? (netAmount / dailyBurn).round()
+                : 0;
             final runwayStatus = runwayDays > 14 ? 'STABLE' : 'CRITICAL';
 
             // Income volatility check
             final lastWeekIncome = 150000.0; // Would come from historical data
             final incomeChange = lastWeekIncome > 0
-                ? ((weeklyIncome - lastWeekIncome) / lastWeekIncome * 100).round()
+                ? ((weeklyIncome - lastWeekIncome) / lastWeekIncome * 100)
+                      .round()
                 : 0;
             final isIncomeVolatile = incomeChange.abs() > 25;
 
@@ -84,14 +89,17 @@ class VariableEarnerDashboard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1), // FIXED: Using withOpacity
+                            color: Colors.white.withOpacity(
+                              0.1,
+                            ), // FIXED: Using withOpacity
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   const Text(
                                     'Net Amount',
@@ -120,10 +128,12 @@ class VariableEarnerDashboard extends StatelessWidget {
                               ),
                               const SizedBox(height: 16),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Earned',
@@ -143,7 +153,8 @@ class VariableEarnerDashboard extends StatelessWidget {
                                     ],
                                   ),
                                   Column(
-                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.center,
                                     children: [
                                       const Text(
                                         'Spent',
@@ -153,7 +164,9 @@ class VariableEarnerDashboard extends StatelessWidget {
                                         ),
                                       ),
                                       Text(
-                                        CurrencyFormatter.format(weeklyExpenses),
+                                        CurrencyFormatter.format(
+                                          weeklyExpenses,
+                                        ),
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontSize: 16,
@@ -222,7 +235,8 @@ class VariableEarnerDashboard extends StatelessWidget {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Income Volatility Alert',
@@ -263,12 +277,29 @@ class VariableEarnerDashboard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Weekly Budget Overview
-                          const Text(
-                            'Weekly Budget Overview',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Weekly Budget Overview',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const BudgetTrackerScreen(),
+                                    ),
+                                  );
+                                },
+                                child: const Text('See All >'),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 16),
                           SizedBox(
@@ -276,7 +307,8 @@ class VariableEarnerDashboard extends StatelessWidget {
                             child: StreamBuilder<List<BudgetModel>>(
                               stream: _firebaseService.getBudgets(),
                               builder: (context, snapshot) {
-                                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                                if (!snapshot.hasData ||
+                                    snapshot.data!.isEmpty) {
                                   return const Center(
                                     child: Text('No budgets set'),
                                   );
@@ -295,7 +327,9 @@ class VariableEarnerDashboard extends StatelessWidget {
                                   scrollDirection: Axis.horizontal,
                                   itemCount: budgets.length,
                                   itemBuilder: (context, index) {
-                                    return _buildWeeklyBudgetCard(budgets[index]);
+                                    return _buildWeeklyBudgetCard(
+                                      budgets[index],
+                                    );
                                   },
                                 );
                               },
@@ -306,20 +340,28 @@ class VariableEarnerDashboard extends StatelessWidget {
                           // Cashflow Summary
                           Container(
                             padding: const EdgeInsets.all(16),
+                            // decoration: BoxDecoration(
+                            //   gradient: const LinearGradient(
+                            //     colors: [Color(0xFF2B5BA6),Color(0xFFFFFF),Color(0xFF1E3A6D),],),
+                            //   borderRadius: BorderRadius.circular(16),
+                            // ),
                             decoration: BoxDecoration(
-                              color: AppTheme.lightGray,
-                              borderRadius: BorderRadius.circular(16),
+                            color: AppTheme.green.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppTheme.green),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     const Text(
                                       'Cashflow Summary',
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
+                                        color: AppTheme.green,
                                       ),
                                     ),
                                     IconButton(
@@ -327,20 +369,26 @@ class VariableEarnerDashboard extends StatelessWidget {
                                       onPressed: onRefresh,
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(),
+                                      color: AppTheme.green,
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 12),
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceAround,
                                   children: [
                                     Column(
                                       children: [
-                                        const Icon(Icons.arrow_downward,
-                                            color: AppTheme.green),
+                                        const Icon(
+                                          Icons.arrow_downward,
+                                          color: AppTheme.green,
+                                        ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          CurrencyFormatter.format(weeklyIncome),
+                                          CurrencyFormatter.format(
+                                            weeklyIncome,
+                                          ),
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             color: AppTheme.green,
@@ -354,11 +402,15 @@ class VariableEarnerDashboard extends StatelessWidget {
                                     ),
                                     Column(
                                       children: [
-                                        const Icon(Icons.arrow_upward,
-                                            color: AppTheme.red),
+                                        const Icon(
+                                          Icons.arrow_upward,
+                                          color: AppTheme.red,
+                                        ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          CurrencyFormatter.format(weeklyExpenses),
+                                          CurrencyFormatter.format(
+                                            weeklyExpenses,
+                                          ),
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             color: AppTheme.red,
@@ -372,12 +424,15 @@ class VariableEarnerDashboard extends StatelessWidget {
                                     ),
                                     Column(
                                       children: [
-                                        const Icon(Icons.savings,
-                                            color: AppTheme.primaryBlue),
+                                        const Icon(
+                                          Icons.savings,
+                                          color: AppTheme.primaryBlue,
+                                        ),
                                         const SizedBox(height: 4),
                                         Text(
                                           CurrencyFormatter.format(
-                                              weeklyIncome - weeklyExpenses),
+                                            weeklyIncome - weeklyExpenses,
+                                          ),
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             color: AppTheme.primaryBlue,
@@ -443,8 +498,20 @@ class VariableEarnerDashboard extends StatelessWidget {
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
     final weekEnd = weekStart.add(const Duration(days: 6));
 
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
 
     return '${months[weekStart.month - 1]} ${weekStart.day} - ${months[weekEnd.month - 1]} ${weekEnd.day}';
   }
@@ -513,7 +580,7 @@ class VariableEarnerDashboard extends StatelessWidget {
             transaction.date.isAfter(weekStart)) {
           categoryTotals[transaction.category] =
               (categoryTotals[transaction.category] ?? 0) +
-                  transaction.actualExpenseAmount;
+              transaction.actualExpenseAmount;
         }
       }
       return categoryTotals;
@@ -561,7 +628,8 @@ class VariableEarnerDashboard extends StatelessWidget {
           StreamBuilder<Map<String, double>>(
             stream: _getActualSpendingStream(),
             builder: (context, snapshot) {
-              final actualSpent = snapshot.data?[budget.category] ?? budget.spent;
+              final actualSpent =
+                  snapshot.data?[budget.category] ?? budget.spent;
               final isActuallyOverBudget = actualSpent > budget.amount;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -571,15 +639,14 @@ class VariableEarnerDashboard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: isActuallyOverBudget ? AppTheme.red : Colors.black87,
+                      color: isActuallyOverBudget
+                          ? AppTheme.red
+                          : Colors.black87,
                     ),
                   ),
                   Text(
                     'of ${CurrencyFormatter.format(budget.amount)}',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey[600],
-                    ),
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                   ),
                 ],
               );
@@ -590,7 +657,12 @@ class VariableEarnerDashboard extends StatelessWidget {
     );
   }
 
-  Widget _buildIncomeCard(String title, double amount, IconData icon, Color color) {
+  Widget _buildIncomeCard(
+    String title,
+    double amount,
+    IconData icon,
+    Color color,
+  ) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -606,10 +678,7 @@ class VariableEarnerDashboard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 4),
             Text(
