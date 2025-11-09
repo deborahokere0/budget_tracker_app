@@ -742,7 +742,7 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
     required bool isDimmed,
   }) {
     final budgetAmount = budget?.amount ?? 0.0;
-    final spent = budget?.spent ?? _actualSpending[category] ?? 0.0;
+    final spent = _actualSpending[category] ?? budget?.spent ?? 0.0;
     final hasAllocation = allocationRule != null;
     final isOverBudget = budgetAmount > 0 && spent > budgetAmount;
     final hasSpendingNoAllocation = spent > 0 && !hasAllocation;
@@ -1004,7 +1004,7 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                 ),
               ),
               Text(
-                CurrencyFormatter.format(budget?.spent ?? _actualSpending[category] ?? 0.0),
+                CurrencyFormatter.format(_actualSpending[category] ?? budget?.spent ??  0.0),
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
