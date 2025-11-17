@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:budget_tracker_app/screens/auth/splash_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -34,6 +35,7 @@ class BudgetTrackerApp extends StatefulWidget {
 class _BudgetTrackerAppState extends State<BudgetTrackerApp>
     with WidgetsBindingObserver {
   final FirebaseService _firebaseService = FirebaseService();
+  Timer? _alertCheckTimer;
 
   @override
   void initState() {
@@ -44,6 +46,7 @@ class _BudgetTrackerAppState extends State<BudgetTrackerApp>
 
   @override
   void dispose() {
+    _alertCheckTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -60,10 +63,9 @@ class _BudgetTrackerAppState extends State<BudgetTrackerApp>
 
   // Setup periodic alert checking (every 30 minutes when app is active)
   void _setupPeriodicAlertCheck() {
-    Future.delayed(const Duration(minutes: 30), () {
+    _alertCheckTimer = Timer.periodic(const Duration(minutes: 30), (_) {
       if (mounted) {
         _checkAlertsOnResume();
-        _setupPeriodicAlertCheck(); // Reschedule
       }
     });
   }
