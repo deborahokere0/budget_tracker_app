@@ -24,7 +24,7 @@ class BudgetModel {
   });
 
   double get remaining => amount - spent;
-  double get percentSpent => spent / amount * 100;
+  double get percentSpent => amount > 0 ? (spent / amount * 100) : 0.0;
 
   Map<String, dynamic> toMap() {
     return {
@@ -49,11 +49,23 @@ class BudgetModel {
       amount: (map['amount'] ?? 0).toDouble(),
       spent: (map['spent'] ?? 0).toDouble(),
       period: map['period'] ?? 'monthly',
-      startDate: DateTime.parse(map['startDate'] ?? DateTime.now().toIso8601String()),
-      endDate: DateTime.parse(map['endDate'] ?? DateTime.now().toIso8601String()),
+      startDate: _parseDateTime(map['startDate']),
+      endDate: _parseDateTime(map['endDate']),
       linkedAlertRuleId: map['linkedAlertRuleId'],
       isAutoCreated: map['isAutoCreated'] ?? false,
     );
+  }
+
+  static DateTime _parseDateTime(dynamic value) {
+    if (value == null) return DateTime.now();
+    if (value is String) {
+      try {
+        return DateTime.parse(value);
+      } catch (e) {
+        return DateTime.now();
+      }
+    }
+    return DateTime.now();
   }
 
   BudgetModel copyWith({
