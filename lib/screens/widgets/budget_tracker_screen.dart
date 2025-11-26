@@ -127,54 +127,82 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryBlue.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    color: AppTheme.primaryBlue,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.primaryBlue.withOpacity(0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Column(
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Budget Amount',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Budget Amount',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.white.withOpacity(0.8),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                CurrencyFormatter.format(budget.amount),
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            CurrencyFormatter.format(budget.amount),
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                'Current Spending',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.white.withOpacity(0.8),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                CurrencyFormatter.format(budget.spent),
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: budget.spent > budget.amount
+                                      ? AppTheme.red
+                                      : Colors.white,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            'Current Spending',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
+                      const SizedBox(height: 16),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: LinearProgressIndicator(
+                          value: (budget.spent / budget.amount).clamp(0.0, 1.0),
+                          minHeight: 12,
+                          backgroundColor: Colors.white.withOpacity(0.2),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            budget.spent > budget.amount
+                                ? AppTheme.red
+                                : AppTheme.green,
                           ),
-                          Text(
-                            CurrencyFormatter.format(budget.spent),
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: budget.spent > budget.amount
-                                  ? AppTheme.red
-                                  : AppTheme.green,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
@@ -242,163 +270,213 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                     }
 
                     return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            spreadRadius: 1,
+                            blurRadius: 5,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                         border: Border.all(
-                          color: statusColor.withValues(alpha: 0.3),
-                          width: 2,
+                          color: statusColor.withOpacity(0.3),
+                          width: 1,
                         ),
                       ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Icon(statusIcon, color: statusColor, size: 24),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      alert.name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    Text(
-                                      status.toUpperCase(),
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: statusColor,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: statusColor.withOpacity(0.05),
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(16),
                               ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _getPriorityColor(
-                                    alert.priority,
-                                  ).withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  'Priority ${alert.priority}',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: _getPriorityColor(alert.priority),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Threshold',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey[600],
-                                      ),
-                                    ),
-                                    Text(
-                                      thresholdType == 'percentage'
-                                          ? '${thresholdValue.toStringAsFixed(0)}% (${CurrencyFormatter.format(thresholdAmount)})'
-                                          : CurrencyFormatter.format(
-                                              thresholdValue,
-                                            ),
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (alert.lastTriggered != null)
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(statusIcon, color: statusColor, size: 24),
+                                const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Last Triggered',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[600],
+                                        alert.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
                                         ),
                                       ),
                                       Text(
-                                        _getTimeAgo(alert.lastTriggered!),
-                                        style: const TextStyle(
+                                        status.toUpperCase(),
+                                        style: TextStyle(
+                                          fontSize: 11,
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 12,
+                                          color: statusColor,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                            ],
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _getPriorityColor(
+                                      alert.priority,
+                                    ).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: _getPriorityColor(
+                                        alert.priority,
+                                      ).withOpacity(0.3),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Priority ${alert.priority}',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: _getPriorityColor(alert.priority),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () async {
-                                    Navigator.pop(context);
-                                    await _navigateToEditAlert(alert);
-                                  },
-                                  icon: const Icon(Icons.edit, size: 16),
-                                  label: const Text('Edit'),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Threshold',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            thresholdType == 'percentage'
+                                                ? '${thresholdValue.toStringAsFixed(0)}% (${CurrencyFormatter.format(thresholdAmount)})'
+                                                : CurrencyFormatter.format(
+                                                    thresholdValue,
+                                                  ),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
+                                    if (alert.lastTriggered != null)
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.end,
+                                          children: [
+                                            Text(
+                                              'Last Triggered',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              _getTimeAgo(alert.lastTriggered!),
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () async {
-                                    final confirm = await _confirmDelete(
-                                      context,
-                                      alert.name,
-                                    );
-                                    if (confirm == true) {
-                                      await _firebaseService.deleteRule(
-                                        alert.id,
-                                      );
-                                      Navigator.pop(context);
-                                      setState(() {});
-                                    }
-                                  },
-                                  icon: const Icon(Icons.delete, size: 16),
-                                  label: const Text('Delete'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppTheme.red,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
+                                const SizedBox(height: 16),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () async {
+                                          Navigator.pop(context);
+                                          await _navigateToEditAlert(alert);
+                                        },
+                                        icon: const Icon(Icons.edit, size: 16),
+                                        label: const Text('Edit'),
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () async {
+                                          final confirm = await _confirmDelete(
+                                            context,
+                                            alert.name,
+                                          );
+                                          if (confirm == true) {
+                                            await _firebaseService.deleteRule(
+                                              alert.id,
+                                            );
+                                            Navigator.pop(context);
+                                            setState(() {});
+                                          }
+                                        },
+                                        icon: const Icon(
+                                          Icons.delete,
+                                          size: 16,
+                                        ),
+                                        label: const Text('Delete'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: AppTheme.red,
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          side: BorderSide(
+                                            color: AppTheme.red.withOpacity(
+                                              0.5,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -417,7 +495,11 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryBlue,
                     foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 50),
+                    minimumSize: const Size(double.infinity, 56),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
                 ),
               ],

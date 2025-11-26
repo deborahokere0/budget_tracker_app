@@ -128,147 +128,152 @@ class _RulesScreenState extends State<RulesScreen>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              rule.name,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              rule.type.toUpperCase(),
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
-            ),
-            const Divider(height: 30),
-            _buildDetailRow('Priority', 'Level ${rule.priority}'),
-            _buildDetailRow('Status', rule.isActive ? 'Active' : 'Inactive'),
-            _buildDetailRow(
-              'Created',
-              '${rule.createdAt.day}/${rule.createdAt.month}/${rule.createdAt.year}',
-            ),
-
-            if (rule.type == 'savings' &&
-                rule.isPiggyBank != null &&
-                !rule.isPiggyBank!) ...[
-              const SizedBox(height: 16),
-              _buildDetailRow('Goal', rule.goalName ?? 'N/A'),
-              _buildDetailRow(
-                'Target',
-                CurrencyFormatter.format(rule.targetAmount ?? 0),
-              ),
-              _buildDetailRow(
-                'Current',
-                CurrencyFormatter.format(rule.currentAmount ?? 0),
-              ),
-              _buildDetailRow(
-                'Progress',
-                '${rule.savingsProgress.toStringAsFixed(1)}%',
-              ),
-            ],
-
-            const SizedBox(height: 16),
-            const Text(
-              'Description',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(_getRuleDescription(rule)),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Conditions',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                rule.conditions.entries
-                    .map((e) => '${e.key}: ${e.value}')
-                    .join('\n'),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Actions',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                rule.actions.entries
-                    .map((e) => '${e.key}: ${e.value}')
-                    .join('\n'),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _editRule(rule);
-                    },
-                    icon: const Icon(Icons.edit),
-                    label: const Text("Edit Rule"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryBlue,
-                      minimumSize: const Size(double.infinity, 50),
-                    ),
+      builder: (context) => SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _deleteRule(rule);
-                    },
-                    icon: const Icon(Icons.delete),
-                    label: const Text("Delete"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.red,
-                      minimumSize: const Size(double.infinity, 50),
-                    ),
-                  ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                rule.name,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                rule.type.toUpperCase(),
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
+              const Divider(height: 30),
+              _buildDetailRow('Priority', 'Level ${rule.priority}'),
+              _buildDetailRow('Status', rule.isActive ? 'Active' : 'Inactive'),
+              _buildDetailRow(
+                'Created',
+                '${rule.createdAt.day}/${rule.createdAt.month}/${rule.createdAt.year}',
+              ),
+
+              if (rule.type == 'savings' &&
+                  rule.isPiggyBank != null &&
+                  !rule.isPiggyBank!) ...[
+                const SizedBox(height: 16),
+                _buildDetailRow('Goal', rule.goalName ?? 'N/A'),
+                _buildDetailRow(
+                  'Target',
+                  CurrencyFormatter.format(rule.targetAmount ?? 0),
+                ),
+                _buildDetailRow(
+                  'Current',
+                  CurrencyFormatter.format(rule.currentAmount ?? 0),
+                ),
+                _buildDetailRow(
+                  'Progress',
+                  '${rule.savingsProgress.toStringAsFixed(1)}%',
                 ),
               ],
-            ),
-          ],
+
+              const SizedBox(height: 16),
+              const Text(
+                'Description',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(_getRuleDescription(rule)),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Conditions',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  rule.conditions.entries
+                      .map((e) => '${e.key}: ${e.value}')
+                      .join('\n'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Actions',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  rule.actions.entries
+                      .map((e) => '${e.key}: ${e.value}')
+                      .join('\n'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _editRule(rule);
+                      },
+                      icon: const Icon(Icons.edit),
+                      label: const Text("Edit Rule"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryBlue,
+                        minimumSize: const Size(double.infinity, 50),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _deleteRule(rule);
+                      },
+                      icon: const Icon(Icons.delete),
+                      label: const Text("Delete"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.red,
+                        minimumSize: const Size(double.infinity, 50),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
