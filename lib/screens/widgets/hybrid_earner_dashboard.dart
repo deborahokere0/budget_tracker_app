@@ -285,7 +285,9 @@ class HybridEarnerDashboard extends StatelessWidget {
                                               borderRadius: BorderRadius.circular(12),
                                             ),
                                             child: Text(
-                                              '${((salaryIncome / (salaryIncome + gigIncome)) * 100).toStringAsFixed(0)}%',
+                                              salaryIncome + gigIncome > 0
+                                              ? '${((salaryIncome / (salaryIncome + gigIncome)) * 100).toStringAsFixed(0)}%'
+                                                  : '0%',
                                               style: const TextStyle(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.bold,

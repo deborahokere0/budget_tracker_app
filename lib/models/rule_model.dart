@@ -2,7 +2,7 @@ class RuleModel {
   String id;
   String userId;
   String name;
-  String type; // 'allocation', 'savings', 'alert', 'boost'
+  String type; // 'allocation', 'savings', 'alert', 'boost', 'income_allocation'
   Map<String, dynamic> conditions;
   Map<String, dynamic> actions;
   int priority; // 1-5, higher priority rules are applied first
@@ -15,6 +15,14 @@ class RuleModel {
   double? currentAmount;
   String? goalName;
   bool? isPiggyBank;
+
+  // Income allocation specific fields (for variable earners)
+  String? incomeSource; // 'all', 'Gig Work', 'Gift', etc.
+  String? allocationType; // 'percentage' or 'fixed'
+  double? allocationValue; // percentage or fixed amount
+  String? targetCategory; // budget category to allocate to
+  double? weeklyAllocatedAmount; // track current week allocations
+  DateTime? weekStartDate; // track week for reset
 
   RuleModel({
     required this.id,
@@ -31,6 +39,12 @@ class RuleModel {
     this.currentAmount,
     this.goalName,
     this.isPiggyBank,
+    this.incomeSource,
+    this.allocationType,
+    this.allocationValue,
+    this.targetCategory,
+    this.weeklyAllocatedAmount,
+    this.weekStartDate,
   });
 
   Map<String, dynamic> toMap() {
@@ -49,6 +63,12 @@ class RuleModel {
       'currentAmount': currentAmount,
       'goalName': goalName,
       'isPiggyBank': isPiggyBank,
+      'incomeSource': incomeSource,
+      'allocationType': allocationType,
+      'allocationValue': allocationValue,
+      'targetCategory': targetCategory,
+      'weeklyAllocatedAmount': weeklyAllocatedAmount,
+      'weekStartDate': weekStartDate?.toIso8601String(),
     };
   }
 
@@ -70,6 +90,14 @@ class RuleModel {
       currentAmount: map['currentAmount']?.toDouble(),
       goalName: map['goalName'],
       isPiggyBank: map['isPiggyBank'],
+      incomeSource: map['incomeSource'],
+      allocationType: map['allocationType'],
+      allocationValue: map['allocationValue']?.toDouble(),
+      targetCategory: map['targetCategory'],
+      weeklyAllocatedAmount: map['weeklyAllocatedAmount']?.toDouble(),
+      weekStartDate: map['weekStartDate'] != null
+          ? DateTime.parse(map['weekStartDate'])
+          : null,
     );
   }
 
@@ -88,6 +116,12 @@ class RuleModel {
     double? currentAmount,
     String? goalName,
     bool? isPiggyBank,
+    String? incomeSource,
+    String? allocationType,
+    double? allocationValue,
+    String? targetCategory,
+    double? weeklyAllocatedAmount,
+    DateTime? weekStartDate,
   }) {
     return RuleModel(
       id: id ?? this.id,
@@ -104,6 +138,12 @@ class RuleModel {
       currentAmount: currentAmount ?? this.currentAmount,
       goalName: goalName ?? this.goalName,
       isPiggyBank: isPiggyBank ?? this.isPiggyBank,
+      incomeSource: incomeSource ?? this.incomeSource,
+      allocationType: allocationType ?? this.allocationType,
+      allocationValue: allocationValue ?? this.allocationValue,
+      targetCategory: targetCategory ?? this.targetCategory,
+      weeklyAllocatedAmount: weeklyAllocatedAmount ?? this.weeklyAllocatedAmount,
+      weekStartDate: weekStartDate ?? this.weekStartDate,
     );
   }
 
@@ -113,5 +153,39 @@ class RuleModel {
       return 0.0;
     }
     return (currentAmount! / targetAmount! * 100).clamp(0, 100);
+  }
+
+  // Helper to check if rule applies to income source
+  bool appliesToIncomeSource(String source) {
+    if (type != 'income_allocation') return false;
+    return incomeSource == 'all' || incomeSource == source;
+  }
+
+  // Helper to calculate allocation amount for given income
+  double calculateAllocation(double incomeAmount) {
+    if (allocationType == 'percentage' && allocationValue != null) {
+      return incomeAmount * (allocationValue! / 100);
+    } else if (allocationType == 'fixed' && allocationValue != null) {
+      // Don't allocate more than the income amount
+      return allocationValue! > incomeAmount ? incomeAmount : allocationValue!;
+    }
+    return 0.0;
+  }
+
+  // Check if this is start of new week for reset
+  bool needsWeeklyReset() {
+    if (weekStartDate == null) return true;
+    
+    final now = DateTime.now();
+    final weekStart = _getWeekStart(now);
+    final lastWeekStart = _getWeekStart(weekStartDate!);
+    
+    return weekStart.isAfter(lastWeekStart);
+  }
+
+  DateTime _getWeekStart(DateTime date) {
+    // Get Monday of the week
+    final monday = date.subtract(Duration(days: date.weekday - 1));
+    return DateTime(monday.year, monday.month, monday.day);
   }
 }

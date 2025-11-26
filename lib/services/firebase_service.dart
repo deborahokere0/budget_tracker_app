@@ -6,6 +6,7 @@ import '../models/budget_model.dart';
 import '../models/rule_model.dart';
 import 'alert_service.dart';
 import 'notification_service.dart';
+import 'income_allocation_service.dart';
 
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -83,7 +84,9 @@ class FirebaseService {
       final isDifferentMonth =
           lastReset.year != now.year || lastReset.month != now.month;
 
-      print('Last reset: ${lastReset.year}-${lastReset.month}-${lastReset.day}');
+      print(
+        'Last reset: ${lastReset.year}-${lastReset.month}-${lastReset.day}',
+      );
       print('Current date: ${now.year}-${now.month}-${now.day}');
       print('Is different month? $isDifferentMonth');
 
@@ -100,20 +103,21 @@ class FirebaseService {
     try {
       // Archive previous month's data (optional but recommended)
       await _archivePreviousMonthData();
-      
+
       // Reset budgets instead of deleting them
       await _resetMonthlyBudgets();
-      
+
       // Disable alert rules instead of deleting them
       await _disableAlertRules();
-      
+
       // Reset savings tracking for non-piggybank savings goals
       await _resetMonthlySavingsTracking();
 
       // Send notification to user about reset
       await NotificationService.sendReminderNotification(
         title: '📅 New Month Started',
-        body: 'Your budgets have been reset. Review and enable your alert rules for this month.',
+        body:
+            'Your budgets have been reset. Review and enable your alert rules for this month.',
       );
 
       print('Monthly reset operations completed');
@@ -127,10 +131,11 @@ class FirebaseService {
   Future<void> _archivePreviousMonthData() async {
     try {
       print('📦 Archiving previous month data...');
-      
+
       final now = DateTime.now();
       final lastMonth = DateTime(now.year, now.month - 1, 1);
-      final archiveId = '${lastMonth.year}_${lastMonth.month.toString().padLeft(2, '0')}';
+      final archiveId =
+          '${lastMonth.year}_${lastMonth.month.toString().padLeft(2, '0')}';
 
       // Get current month's budget performance
       final budgetsSnapshot = await _firestore
@@ -204,15 +209,17 @@ class FirebaseService {
 
       for (var doc in budgetsSnapshot.docs) {
         final budget = BudgetModel.fromMap(doc.data());
-        
+
         // Reset budget: keep configuration but reset spending
         final resetBudget = budget.copyWith(
-          spent: 0.0,  // Reset spending to 0
+          spent: 0.0, // Reset spending to 0
           startDate: monthStart,
           endDate: monthEnd,
         );
 
-        print('Resetting budget: ${budget.category} (was ${budget.spent}/${budget.amount})');
+        print(
+          'Resetting budget: ${budget.category} (was ${budget.spent}/${budget.amount})',
+        );
         batch.update(doc.reference, resetBudget.toMap());
         resetCount++;
       }
@@ -251,10 +258,10 @@ class FirebaseService {
 
       for (var doc in rulesSnapshot.docs) {
         final rule = RuleModel.fromMap(doc.data());
-        
+
         // Check if we should auto-enable (based on user preference)
         bool shouldAutoEnable = await _shouldAutoEnableAlert(rule);
-        
+
         // Update rule: disable by default or auto-enable based on preference
         final updates = {
           'isActive': shouldAutoEnable,
@@ -262,7 +269,9 @@ class FirebaseService {
           'monthlyResetDate': DateTime.now().toIso8601String(),
         };
 
-        print('${shouldAutoEnable ? "Auto-enabling" : "Disabling"} alert: ${rule.name}');
+        print(
+          '${shouldAutoEnable ? "Auto-enabling" : "Disabling"} alert: ${rule.name}',
+        );
         batch.update(doc.reference, updates);
         disableCount++;
       }
@@ -280,19 +289,19 @@ class FirebaseService {
   Future<bool> _shouldAutoEnableAlert(RuleModel rule) async {
     // Check if rule has auto-enable flag in metadata
     final autoEnable = rule.conditions['autoEnableMonthly'] ?? false;
-    
+
     // You can also check user-level preferences here
     final userDoc = await _firestore
         .collection('users')
         .doc(currentUserId)
         .get();
-    
+
     if (userDoc.exists) {
       final userData = userDoc.data();
       final globalAutoEnable = userData?['autoEnableAlertsMonthly'] ?? false;
       return autoEnable || globalAutoEnable;
     }
-    
+
     return autoEnable;
   }
 
@@ -300,7 +309,7 @@ class FirebaseService {
   Future<void> _resetMonthlySavingsTracking() async {
     try {
       print('🎯 Resetting monthly savings tracking...');
-      
+
       final savingsRulesSnapshot = await _firestore
           .collection('rules')
           .doc(currentUserId)
@@ -318,16 +327,15 @@ class FirebaseService {
 
       for (var doc in savingsRulesSnapshot.docs) {
         final rule = RuleModel.fromMap(doc.data());
-        
+
         // Only reset non-piggybank monthly savings goals
-        if (rule.isPiggyBank != true && 
+        if (rule.isPiggyBank != true &&
             rule.conditions['resetMonthly'] == true) {
-          
           batch.update(doc.reference, {
             'currentAmount': 0.0,
             'monthlyResetDate': DateTime.now().toIso8601String(),
           });
-          
+
           print('Reset savings goal: ${rule.goalName}');
           resetCount++;
         }
@@ -346,10 +354,7 @@ class FirebaseService {
   /// Save the reset timestamp
   Future<void> _saveResetTimestamp() async {
     try {
-      await _firestore
-          .collection('reset_tracker')
-          .doc(currentUserId)
-          .set({
+      await _firestore.collection('reset_tracker').doc(currentUserId).set({
         'lastResetDate': DateTime.now().toIso8601String(),
         'lastResetMonth': DateTime.now().month,
         'lastResetYear': DateTime.now().year,
@@ -375,7 +380,7 @@ class FirebaseService {
           .get();
 
       WriteBatch batch = _firestore.batch();
-      
+
       for (var doc in rulesSnapshot.docs) {
         batch.update(doc.reference, {'isActive': true});
       }
@@ -407,7 +412,9 @@ class FirebaseService {
       }
 
       final snapshot = await query.get();
-      return snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+      return snapshot.docs
+          .map((doc) => doc.data() as Map<String, dynamic>)
+          .toList();
     } catch (e) {
       print('Error getting archived budgets: $e');
       return [];
@@ -424,7 +431,8 @@ class FirebaseService {
 
       for (int i = 0; i < monthsBack; i++) {
         final targetDate = DateTime(now.year, now.month - i, 1);
-        final archiveId = '${targetDate.year}_${targetDate.month.toString().padLeft(2, '0')}';
+        final archiveId =
+            '${targetDate.year}_${targetDate.month.toString().padLeft(2, '0')}';
 
         final doc = await _firestore
             .collection('budget_archives')
@@ -442,7 +450,10 @@ class FirebaseService {
             final spent = (budget['actualSpent'] as num).toDouble();
 
             trends[category] ??= [];
-            trends[category]!.insert(0, spent); // Insert at beginning for chronological order
+            trends[category]!.insert(
+              0,
+              spent,
+            ); // Insert at beginning for chronological order
           }
         }
       }
@@ -473,7 +484,9 @@ class FirebaseService {
 
       final now = DateTime.now();
       final weekStart = now.subtract(Duration(days: now.weekday - 1));
-      final weekEnd = weekStart.add(const Duration(days: 6, hours: 23, minutes: 59, seconds: 59));
+      final weekEnd = weekStart.add(
+        const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
+      );
 
       WriteBatch batch = _firestore.batch();
       int resetCount = 0;
@@ -509,22 +522,23 @@ class FirebaseService {
   /// Archive weekly budget data
   Future<void> _archiveWeeklyBudget(BudgetModel budget) async {
     try {
-      final weekId = '${budget.startDate.year}_W${_getWeekNumber(budget.startDate)}';
-      
+      final weekId =
+          '${budget.startDate.year}_W${_getWeekNumber(budget.startDate)}';
+
       await _firestore
           .collection('budget_archives')
           .doc(currentUserId)
           .collection('weekly_archives')
           .doc(weekId)
           .set({
-        'category': budget.category,
-        'budgetAmount': budget.amount,
-        'actualSpent': budget.spent,
-        'percentUsed': budget.percentSpent,
-        'startDate': budget.startDate.toIso8601String(),
-        'endDate': budget.endDate.toIso8601String(),
-        'archivedAt': DateTime.now().toIso8601String(),
-      }, SetOptions(merge: true));
+            'category': budget.category,
+            'budgetAmount': budget.amount,
+            'actualSpent': budget.spent,
+            'percentUsed': budget.percentSpent,
+            'startDate': budget.startDate.toIso8601String(),
+            'endDate': budget.endDate.toIso8601String(),
+            'archivedAt': DateTime.now().toIso8601String(),
+          }, SetOptions(merge: true));
     } catch (e) {
       print('Error archiving weekly budget: $e');
     }
@@ -539,8 +553,14 @@ class FirebaseService {
 
   // ========== AUTHENTICATION ==========
 
-  Future<User?> signUp(String email, String password, String fullName,
-      String username, String incomeType, double monthlyIncome) async {
+  Future<User?> signUp(
+    String email,
+    String password,
+    String fullName,
+    String username,
+    String incomeType,
+    double monthlyIncome,
+  ) async {
     try {
       UserCredential result = await _auth.createUserWithEmailAndPassword(
         email: email,
@@ -585,7 +605,9 @@ class FirebaseService {
     } on FirebaseException catch (e) {
       print('Firebase Error: ${e.code} - ${e.message}');
       if (e.code == 'permission-denied') {
-        throw Exception('Permission denied. Please check your account settings.');
+        throw Exception(
+          'Permission denied. Please check your account settings.',
+        );
       }
       throw Exception('Database error: ${e.message}');
     } catch (e) {
@@ -636,7 +658,10 @@ class FirebaseService {
 
   Future<UserModel?> getUserProfile(String uid) async {
     try {
-      DocumentSnapshot doc = await _firestore.collection('users').doc(uid).get();
+      DocumentSnapshot doc = await _firestore
+          .collection('users')
+          .doc(uid)
+          .get();
       if (doc.exists) {
         return UserModel.fromMap(doc.data() as Map<String, dynamic>);
       }
@@ -654,13 +679,12 @@ class FirebaseService {
       final incomeTypeChanged = oldUser?.incomeType != user.incomeType;
 
       // Update profile
-      await _firestore
-          .collection('users')
-          .doc(user.uid)
-          .update(user.toMap());
+      await _firestore.collection('users').doc(user.uid).update(user.toMap());
       // If income type changed, recalculate all budgets
       if (incomeTypeChanged) {
-        print('Income type changed from ${oldUser?.incomeType} to ${user.incomeType}');
+        print(
+          'Income type changed from ${oldUser?.incomeType} to ${user.incomeType}',
+        );
         await recalculateBudgetsForIncomeType(user.incomeType);
       }
     } catch (e) {
@@ -684,18 +708,25 @@ class FirebaseService {
 
       // Update budget spent amount if expense (use actual expense amount)
       if (transaction.type == 'expense') {
-        await _updateBudgetSpent(transaction.category, transaction.actualExpenseAmount);
+        await _updateBudgetSpent(
+          transaction.category,
+          transaction.actualExpenseAmount,
+        );
       }
 
       // Update savings goal progress if has savings allocation
-      if (transaction.hasSavingsAllocation && transaction.savingsGoalId != null) {
-        await updateSavingsProgress(transaction.savingsGoalId!, transaction.savingsAllocation!);
+      if (transaction.hasSavingsAllocation &&
+          transaction.savingsGoalId != null) {
+        await updateSavingsProgress(
+          transaction.savingsGoalId!,
+          transaction.savingsAllocation!,
+        );
       }
 
       // Check and apply allocation rules (for income)
-      // if (transaction.type == 'income') {
-      //   await _applyAllocationRules(transaction);
-      // }
+      if (transaction.type == 'income') {
+        await _applyAllocationRules(transaction);
+      }
 
       // Check alerts immediately after expense transaction - WITH ERROR HANDLING
       if (transaction.type == 'expense' && currentUserId != null) {
@@ -730,10 +761,10 @@ class FirebaseService {
         .orderBy('date', descending: true)
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => TransactionModel.fromMap(doc.data()))
-          .toList();
-    });
+          return snapshot.docs
+              .map((doc) => TransactionModel.fromMap(doc.data()))
+              .toList();
+        });
   }
 
   Future<void> deleteTransaction(String transactionId) async {
@@ -750,11 +781,18 @@ class FirebaseService {
 
         if (transaction.type == 'expense') {
           // Reverse budget spent with actual expense amount
-          await _updateBudgetSpent(transaction.category, -transaction.actualExpenseAmount);
+          await _updateBudgetSpent(
+            transaction.category,
+            -transaction.actualExpenseAmount,
+          );
 
           // Reverse savings progress if has allocation
-          if (transaction.hasSavingsAllocation && transaction.savingsGoalId != null) {
-            await updateSavingsProgress(transaction.savingsGoalId!, -transaction.savingsAllocation!);
+          if (transaction.hasSavingsAllocation &&
+              transaction.savingsGoalId != null) {
+            await updateSavingsProgress(
+              transaction.savingsGoalId!,
+              -transaction.savingsAllocation!,
+            );
           }
         }
 
@@ -763,6 +801,21 @@ class FirebaseService {
     } catch (e) {
       print('Error deleting transaction: $e');
       rethrow;
+    }
+  }
+
+  /// Apply allocation rules for income transaction
+  Future<void> _applyAllocationRules(TransactionModel transaction) async {
+    if (currentUserId == null) return;
+
+    try {
+      final user = await getUserProfile(currentUserId!);
+      if (user != null) {
+        final allocationService = IncomeAllocationService(currentUserId!);
+        await allocationService.processIncomeTransaction(transaction, user);
+      }
+    } catch (e) {
+      print('Error applying allocation rules: $e');
     }
   }
 
@@ -794,10 +847,10 @@ class FirebaseService {
         .collection('userBudgets')
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => BudgetModel.fromMap(doc.data()))
-          .toList();
-    });
+          return snapshot.docs
+              .map((doc) => BudgetModel.fromMap(doc.data()))
+              .toList();
+        });
   }
 
   Future<void> updateBudget(BudgetModel budget) async {
@@ -825,11 +878,15 @@ class FirebaseService {
 
   // ========== BUDGET-ALLOCATION SYNC ==========
 
-  Future<void> _createBudgetFromAllocation(RuleModel rule, UserModel user) async {
+  Future<void> _createBudgetFromAllocation(
+    RuleModel rule,
+    UserModel user,
+  ) async {
     try {
       final category = rule.conditions['category'] as String?;
       final amountType = rule.conditions['amountType'] as String?;
-      final amountValue = (rule.conditions['amountValue'] as num?)?.toDouble() ?? 0.0;
+      final amountValue =
+          (rule.conditions['amountValue'] as num?)?.toDouble() ?? 0.0;
 
       if (category == null || amountValue <= 0) return;
 
@@ -968,7 +1025,9 @@ class FirebaseService {
       }
 
       await batch.commit();
-      print('Recalculated ${budgetsSnapshot.docs.length} budgets for $incomeType earner');
+      print(
+        'Recalculated ${budgetsSnapshot.docs.length} budgets for $incomeType earner',
+      );
     } catch (e) {
       print('Error recalculating budgets: $e');
     }
@@ -1103,7 +1162,9 @@ class FirebaseService {
 
         // Check if we should notify about progress
         final alertService = AlertService(currentUserId!);
-        await alertService.checkSavingsGoalProgress(rule.copyWith(currentAmount: newAmount));
+        await alertService.checkSavingsGoalProgress(
+          rule.copyWith(currentAmount: newAmount),
+        );
       }
     } catch (e) {
       print('Error updating savings progress: $e');
@@ -1172,7 +1233,8 @@ class FirebaseService {
 
       for (var doc in transactionSnapshot.docs) {
         TransactionModel transaction = TransactionModel.fromMap(
-            doc.data() as Map<String, dynamic>);
+          doc.data() as Map<String, dynamic>,
+        );
 
         if (transaction.type == 'income') {
           totalIncome += transaction.amount;
@@ -1241,12 +1303,389 @@ class FirebaseService {
 
       if (snapshot.docs.isNotEmpty) {
         DocumentSnapshot doc = snapshot.docs.first;
-        BudgetModel budget = BudgetModel.fromMap(doc.data() as Map<String, dynamic>);
+        BudgetModel budget = BudgetModel.fromMap(
+          doc.data() as Map<String, dynamic>,
+        );
         budget = budget.copyWith(spent: budget.spent + amount);
         await updateBudget(budget);
       }
     } catch (e) {
       print('Error updating budget spent: $e');
     }
+  }
+
+  /// Process income transaction with auto-allocation for variable earners
+  Future<void> processIncomeWithAllocation(
+    TransactionModel transaction,
+    UserModel user,
+  ) async {
+    if (user.incomeType != 'variable' || transaction.type != 'income') {
+      return;
+    }
+
+    try {
+      print('Processing income with allocation for variable earner');
+
+      // Initialize allocation service
+      final allocationService = IncomeAllocationService(user.uid);
+
+      // Process allocations
+      final allocations = await allocationService.processIncomeTransaction(
+        transaction,
+        user,
+      );
+
+      // Store allocation details with transaction
+      if (allocations.isNotEmpty) {
+        await _firestore
+            .collection('transactions')
+            .doc(user.uid)
+            .collection('userTransactions')
+            .doc(transaction.id)
+            .update({
+              'allocations': allocations,
+              'totalAllocated': allocations.values.reduce((a, b) => a + b),
+              'processedAt': DateTime.now().toIso8601String(),
+            });
+      }
+
+      print('Income allocation processing completed');
+    } catch (e) {
+      print('Error processing income allocation: $e');
+      rethrow;
+    }
+  }
+
+  /// Get variable earner weekly stats
+  Future<Map<String, dynamic>> getVariableEarnerWeeklyStats() async {
+    final userId = currentUserId;
+    if (userId == null) return {};
+
+    final now = DateTime.now();
+    final weekStart = _getWeekStart(now);
+
+    // Get transactions for current week
+    final transactionsSnapshot = await _firestore
+        .collection('transactions')
+        .doc(userId)
+        .collection('userTransactions')
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(weekStart))
+        .get();
+
+    double weeklyIncome = 0;
+    double weeklyExpenses = 0;
+    Map<String, double> incomeBySource = {};
+    Map<String, double> expenseByCategory = {};
+    double totalAllocated = 0;
+
+    for (var doc in transactionsSnapshot.docs) {
+      final transaction = TransactionModel.fromMap(doc.data());
+
+      if (transaction.type == 'income') {
+        weeklyIncome += transaction.amount;
+        incomeBySource[transaction.category] =
+            (incomeBySource[transaction.category] ?? 0) + transaction.amount;
+
+        // Check for allocations
+        final allocations = doc.data()['allocations'] as Map<String, dynamic>?;
+        if (allocations != null) {
+          totalAllocated += (doc.data()['totalAllocated'] ?? 0).toDouble();
+        }
+      } else {
+        weeklyExpenses += transaction.actualExpenseAmount;
+        expenseByCategory[transaction.category] =
+            (expenseByCategory[transaction.category] ?? 0) +
+            transaction.actualExpenseAmount;
+      }
+    }
+
+    // Get weekly budgets
+    final budgetsSnapshot = await _firestore
+        .collection('budgets')
+        .doc(userId)
+        .collection('userBudgets')
+        .where('period', isEqualTo: 'weekly')
+        .where('startDate', isGreaterThanOrEqualTo: weekStart.toIso8601String())
+        .get();
+
+    List<Map<String, dynamic>> weeklyBudgets = [];
+    double totalBudgetAmount = 0;
+    double totalBudgetSpent = 0;
+
+    for (var doc in budgetsSnapshot.docs) {
+      final budget = BudgetModel.fromMap(doc.data());
+      totalBudgetAmount += budget.amount;
+      totalBudgetSpent += budget.spent;
+
+      // Update spent amount from actual expenses
+      final actualSpent = expenseByCategory[budget.category] ?? 0;
+
+      weeklyBudgets.add({
+        'budget': budget,
+        'actualSpent': actualSpent,
+        'percentUsed': budget.amount > 0
+            ? (actualSpent / budget.amount * 100)
+            : 0,
+      });
+    }
+
+    // Calculate income volatility (compare with last week)
+    final lastWeekStart = weekStart.subtract(const Duration(days: 7));
+    final lastWeekEnd = weekStart.subtract(const Duration(seconds: 1));
+
+    final lastWeekIncomeSnapshot = await _firestore
+        .collection('transactions')
+        .doc(userId)
+        .collection('userTransactions')
+        .where('type', isEqualTo: 'income')
+        .where(
+          'date',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(lastWeekStart),
+        )
+        .where('date', isLessThanOrEqualTo: Timestamp.fromDate(lastWeekEnd))
+        .get();
+
+    double lastWeekIncome = 0;
+    for (var doc in lastWeekIncomeSnapshot.docs) {
+      final transaction = TransactionModel.fromMap(doc.data());
+      lastWeekIncome += transaction.amount;
+    }
+
+    double incomeChangePercent = 0;
+    if (lastWeekIncome > 0) {
+      incomeChangePercent =
+          ((weeklyIncome - lastWeekIncome) / lastWeekIncome * 100);
+    }
+
+    // Calculate runway (how many weeks of expenses can be covered)
+    final totalBalance = await _calculateTotalBalance(userId);
+    final weeklyBurnRate = weeklyExpenses > 0 ? weeklyExpenses : 1;
+    final runwayWeeks = (totalBalance / weeklyBurnRate).round();
+
+    return {
+      'weeklyIncome': weeklyIncome,
+      'weeklyExpenses': weeklyExpenses,
+      'netWeekly': weeklyIncome - weeklyExpenses,
+      'incomeBySource': incomeBySource,
+      'expenseByCategory': expenseByCategory,
+      'totalAllocated': totalAllocated,
+      'unallocatedIncome': weeklyIncome - totalAllocated,
+      'weeklyBudgets': weeklyBudgets,
+      'totalBudgetAmount': totalBudgetAmount,
+      'totalBudgetSpent': totalBudgetSpent,
+      'budgetUtilization': totalBudgetAmount > 0
+          ? (totalBudgetSpent / totalBudgetAmount * 100)
+          : 0,
+      'lastWeekIncome': lastWeekIncome,
+      'incomeChangePercent': incomeChangePercent,
+      'incomeVolatility': incomeChangePercent.abs() > 25 ? 'HIGH' : 'STABLE',
+      'totalBalance': totalBalance,
+      'runwayWeeks': runwayWeeks,
+      'runwayStatus': runwayWeeks > 4 ? 'HEALTHY' : 'CRITICAL',
+      'weekStart': weekStart.toIso8601String(),
+    };
+  }
+
+  /// Create income allocation rule
+  Future<void> createIncomeAllocationRule({
+    required String ruleName,
+    required String incomeSource, // 'all', 'Gig Work', 'Gift', etc.
+    required String allocationType, // 'percentage' or 'fixed'
+    required double allocationValue,
+    required String targetCategory,
+    required int priority,
+  }) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('No user logged in');
+
+    final ruleId = _firestore
+        .collection('rules')
+        .doc(userId)
+        .collection('userRules')
+        .doc()
+        .id;
+
+    final rule = RuleModel(
+      id: ruleId,
+      userId: userId,
+      name: ruleName,
+      type: 'income_allocation',
+      conditions: {
+        'incomeSource': incomeSource,
+        'allocationType': allocationType,
+        'allocationValue': allocationValue,
+      },
+      actions: {
+        'targetCategory': targetCategory,
+        'createBudget': true,
+        'createAlert': true,
+      },
+      priority: priority,
+      isActive: true,
+      createdAt: DateTime.now(),
+      incomeSource: incomeSource,
+      allocationType: allocationType,
+      allocationValue: allocationValue,
+      targetCategory: targetCategory,
+      weeklyAllocatedAmount: 0,
+      weekStartDate: _getWeekStart(DateTime.now()),
+    );
+
+    await _firestore
+        .collection('rules')
+        .doc(userId)
+        .collection('userRules')
+        .doc(ruleId)
+        .set(rule.toMap());
+
+    print('Created income allocation rule: $ruleName');
+
+    // Retroactively apply this rule to existing weekly income
+    try {
+      final allocationService = IncomeAllocationService(userId);
+      await allocationService.applyRuleToWeeklyIncome(rule);
+    } catch (e) {
+      print('Error applying rule retroactively: $e');
+    }
+  }
+
+  /// Get all income allocation rules
+  Stream<List<RuleModel>> getIncomeAllocationRules() {
+    final userId = currentUserId;
+    if (userId == null) {
+      return Stream.value([]);
+    }
+
+    return _firestore
+        .collection('rules')
+        .doc(userId)
+        .collection('userRules')
+        .where('type', isEqualTo: 'income_allocation')
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => RuleModel.fromMap(doc.data()))
+              .toList(),
+        );
+  }
+
+  /// Update weekly budgets spent amounts
+  Future<void> updateWeeklyBudgetSpent(String category, double amount) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+
+    final weekStart = _getWeekStart(DateTime.now());
+
+    // Find the weekly budget for this category
+    final budgetQuery = await _firestore
+        .collection('budgets')
+        .doc(userId)
+        .collection('userBudgets')
+        .where('category', isEqualTo: category)
+        .where('period', isEqualTo: 'weekly')
+        .where('startDate', isGreaterThanOrEqualTo: weekStart.toIso8601String())
+        .limit(1)
+        .get();
+
+    if (budgetQuery.docs.isNotEmpty) {
+      final budgetDoc = budgetQuery.docs.first;
+      final currentBudget = BudgetModel.fromMap(budgetDoc.data());
+
+      await _firestore
+          .collection('budgets')
+          .doc(userId)
+          .collection('userBudgets')
+          .doc(budgetDoc.id)
+          .update({'spent': currentBudget.spent + amount});
+
+      print('Updated weekly budget spent for $category: +$amount');
+    }
+  }
+
+  /// Check and perform weekly reset for variable earners
+  Future<void> checkAndPerformWeeklyReset() async {
+    final userId = currentUserId;
+    if (userId == null) return;
+
+    // Get user to check if variable earner
+    final user = await getUserProfile(userId);
+    if (user == null || user.incomeType != 'variable') {
+      return;
+    }
+
+    final now = DateTime.now();
+
+    // Only reset on Mondays
+    if (now.weekday != DateTime.monday) {
+      return;
+    }
+
+    // Check last reset
+    final lastResetDoc = await _firestore
+        .collection('weekly_resets')
+        .doc(userId)
+        .get();
+
+    if (lastResetDoc.exists) {
+      final lastReset = DateTime.parse(
+        lastResetDoc.data()?['lastReset'] ?? '2020-01-01',
+      );
+
+      // If already reset this week, skip
+      if (_getWeekStart(lastReset) == _getWeekStart(now)) {
+        return;
+      }
+    }
+
+    print('Performing weekly reset for variable earner...');
+
+    // Reset allocation tracking
+    final allocationService = IncomeAllocationService(userId);
+    await allocationService.checkAndResetWeeklyAllocations();
+
+    // Update last reset timestamp
+    await _firestore.collection('weekly_resets').doc(userId).set({
+      'lastReset': now.toIso8601String(),
+      'weekStart': _getWeekStart(now).toIso8601String(),
+    });
+
+    // Send notification
+    await NotificationService.sendReminderNotification(
+      title: '📅 New Week Started',
+      body:
+          'Your weekly budgets have been reset. Add income to auto-allocate budgets!',
+    );
+
+    print('Weekly reset completed');
+  }
+
+  /// Calculate total balance (for runway calculation) - helper method
+  Future<double> _calculateTotalBalance(String userId) async {
+    // Get all transactions
+    final transactionsSnapshot = await _firestore
+        .collection('transactions')
+        .doc(userId)
+        .collection('userTransactions')
+        .get();
+
+    double totalIncome = 0;
+    double totalExpenses = 0;
+
+    for (var doc in transactionsSnapshot.docs) {
+      final transaction = TransactionModel.fromMap(doc.data());
+      if (transaction.type == 'income') {
+        totalIncome += transaction.amount;
+      } else {
+        totalExpenses += transaction.actualExpenseAmount;
+      }
+    }
+
+    return totalIncome - totalExpenses;
+  }
+
+  /// Get week start (Monday) - helper method
+  DateTime _getWeekStart(DateTime date) {
+    final monday = date.subtract(Duration(days: date.weekday - 1));
+    return DateTime(monday.year, monday.month, monday.day);
   }
 }

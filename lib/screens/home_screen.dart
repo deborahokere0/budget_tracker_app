@@ -66,7 +66,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadUserProfile() async {
     if (_firebaseService.currentUserId != null) {
-      final user = await _firebaseService.getUserProfile(_firebaseService.currentUserId!);
+      final user = await _firebaseService.getUserProfile(
+        _firebaseService.currentUserId!,
+      );
       if (mounted) {
         setState(() => _currentUser = user);
       }
@@ -113,9 +115,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _navigateToProfile() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const ProfileScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const ProfileScreen()),
     );
     _loadUserProfile();
   }
@@ -210,17 +210,17 @@ class _HomeScreenState extends State<HomeScreen> {
       // Wrap other pages with alerts too
       _currentUser != null
           ? GlobalAlertOverlay(
-        userId: _currentUser!.uid,
-        //dashboardType: _currentUser!.incomeType,
-        child: const TransactionsListScreen(),
-      )
+              userId: _currentUser!.uid,
+              //dashboardType: _currentUser!.incomeType,
+              child: const TransactionsListScreen(),
+            )
           : const TransactionsListScreen(),
       _currentUser != null
           ? GlobalAlertOverlay(
-        userId: _currentUser!.uid,
-        //dashboardType: _currentUser!.incomeType,
-        child: const RulesScreen(),
-      )
+              userId: _currentUser!.uid,
+              //dashboardType: _currentUser!.incomeType,
+              child: const RulesScreen(),
+            )
           : const RulesScreen(),
     ];
 
@@ -228,80 +228,71 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppTheme.primaryBlue,
       appBar: _selectedIndex == 0
           ? AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: _navigateToProfile,
-              child: CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.white,
-                child: _currentUser?.profileImageUrl != null
-                    ? ClipOval(
-                  child: Image.network(
-                    _currentUser!.profileImageUrl!,
-                    width: 36,
-                    height: 36,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return _buildProfileInitial();
-                    },
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: _navigateToProfile,
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: Colors.white,
+                      child: _currentUser?.profileImageUrl != null
+                          ? ClipOval(
+                              child: Image.network(
+                                _currentUser!.profileImageUrl!,
+                                width: 36,
+                                height: 36,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return _buildProfileInitial();
+                                },
+                              ),
+                            )
+                          : _buildProfileInitial(),
+                    ),
                   ),
-                )
-                    : _buildProfileInitial(),
-              ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: _handleSignOut,
-            tooltip: 'Sign Out',
-          ),
-        ],
-      )
+                ),
+                IconButton(
+                  icon: const Icon(Icons.logout, color: Colors.white),
+                  onPressed: _handleSignOut,
+                  tooltip: 'Sign Out',
+                ),
+              ],
+            )
           : null,
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: pages,
-      ),
+      body: IndexedStack(index: _selectedIndex, children: pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) => setState(() => _selectedIndex = index),
         selectedItemColor: AppTheme.primaryBlue,
         unselectedItemColor: Colors.grey,
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(
             icon: Icon(Icons.receipt_long),
             label: 'Transactions',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.rule),
-            label: 'Rules',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.rule), label: 'Rules'),
         ],
       ),
       floatingActionButton: _selectedIndex == 0
           ? FloatingActionButton(
-        backgroundColor: AppTheme.green,
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AddTransactionScreen(
-                onTransactionAdded: _loadDashboardStats,
-                initialTransactionType: 'expense',
-              ),
-            ),
-          );
-        },
-        child: const Icon(Icons.add, color: Colors.white),
-      )
+              backgroundColor: AppTheme.green,
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AddTransactionScreen(
+                      onTransactionAdded: _loadDashboardStats,
+                      initialTransactionType: 'expense',
+                    ),
+                  ),
+                );
+              },
+              child: const Icon(Icons.add, color: Colors.white),
+            )
           : null,
     );
   }

@@ -35,7 +35,8 @@ class AlertService {
       final transaction = TransactionModel.fromMap(data);
       final category = transaction.category;
 
-      categoryTotals[category] = (categoryTotals[category] ?? 0) + transaction.actualExpenseAmount;
+      categoryTotals[category] =
+          (categoryTotals[category] ?? 0) + transaction.actualExpenseAmount;
     }
 
     print('DEBUG: Category totals: $categoryTotals');
@@ -55,14 +56,15 @@ class AlertService {
         .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
         .snapshots()
         .map((snapshot) {
-      Map<String, double> categoryTotals = {};
-      for (var doc in snapshot.docs) {
-        final transaction = TransactionModel.fromMap(doc.data());
-        categoryTotals[transaction.category] =
-            (categoryTotals[transaction.category] ?? 0) + transaction.actualExpenseAmount;
-      }
-      return categoryTotals;
-    });
+          Map<String, double> categoryTotals = {};
+          for (var doc in snapshot.docs) {
+            final transaction = TransactionModel.fromMap(doc.data());
+            categoryTotals[transaction.category] =
+                (categoryTotals[transaction.category] ?? 0) +
+                transaction.actualExpenseAmount;
+          }
+          return categoryTotals;
+        });
   }
 
   // Check all active alert rules and trigger if needed
@@ -95,12 +97,13 @@ class AlertService {
 
   // Check a single alert rule
   Future<void> _checkSingleAlert(
-      RuleModel rule,
-      Map<String, double> categorySpending,
-      ) async {
+    RuleModel rule,
+    Map<String, double> categorySpending,
+  ) async {
     final category = rule.conditions['category'] as String?;
     final thresholdType = rule.conditions['thresholdType'] as String?;
-    final thresholdValue = (rule.conditions['thresholdValue'] as num?)?.toDouble() ?? 0.0;
+    final thresholdValue =
+        (rule.conditions['thresholdValue'] as num?)?.toDouble() ?? 0.0;
 
     if (category == null) {
       print('Alert rule ${rule.name} has no category');
@@ -130,7 +133,9 @@ class AlertService {
       thresholdAmount = budget.amount * (thresholdValue / 100);
     }
 
-    print('Checking alert: ${rule.name} | Category: $category | Spending: $currentSpending | Threshold: $thresholdAmount (${thresholdType})');
+    print(
+      'Checking alert: ${rule.name} | Category: $category | Spending: $currentSpending | Threshold: $thresholdAmount ($thresholdType)',
+    );
 
     // Check if threshold exceeded
     if (currentSpending >= thresholdAmount) {
@@ -153,7 +158,10 @@ class AlertService {
   }
 
   // Determine if we should send notification
-  Future<bool> _shouldSendNotification(RuleModel rule, double currentSpending) async {
+  Future<bool> _shouldSendNotification(
+    RuleModel rule,
+    double currentSpending,
+  ) async {
     // If never triggered, always send notification
     if (rule.lastTriggered == null) {
       print('First time triggering, sending notification');
@@ -161,11 +169,14 @@ class AlertService {
     }
 
     // Check if last notification was more than 24 hours ago (daily reminder)
-    final hoursSinceLastTrigger =
-        DateTime.now().difference(rule.lastTriggered!).inHours;
+    final hoursSinceLastTrigger = DateTime.now()
+        .difference(rule.lastTriggered!)
+        .inHours;
 
     if (hoursSinceLastTrigger >= 24) {
-      print('Last trigger was $hoursSinceLastTrigger hours ago, sending reminder');
+      print(
+        'Last trigger was $hoursSinceLastTrigger hours ago, sending reminder',
+      );
       return true;
     }
 
@@ -181,9 +192,7 @@ class AlertService {
           .doc(userId)
           .collection('userRules')
           .doc(ruleId)
-          .update({
-        'lastTriggered': DateTime.now().toIso8601String(),
-      });
+          .update({'lastTriggered': DateTime.now().toIso8601String()});
     } catch (e) {
       print('Error updating lastTriggered: $e');
     }
@@ -197,7 +206,9 @@ class AlertService {
     }
 
     try {
-      print('Checking alerts for transaction: ${transaction.description} (${transaction.category})');
+      print(
+        'Checking alerts for transaction: ${transaction.description} (${transaction.category})',
+      );
 
       final rulesSnapshot = await _firestore
           .collection('rules')
@@ -218,7 +229,9 @@ class AlertService {
           .where((rule) => rule.conditions['category'] == transaction.category)
           .toList();
 
-      print('Found ${matchingRules.length} matching alert rules for ${transaction.category}');
+      print(
+        'Found ${matchingRules.length} matching alert rules for ${transaction.category}',
+      );
 
       if (matchingRules.isEmpty) {
         print('No alert rules match category ${transaction.category}');
@@ -227,7 +240,9 @@ class AlertService {
 
       // Get current spending for this category
       final categorySpending = await getCurrentCategorySpending();
-      print('Current spending for ${transaction.category}: ${categorySpending[transaction.category] ?? 0.0}');
+      print(
+        'Current spending for ${transaction.category}: ${categorySpending[transaction.category] ?? 0.0}',
+      );
 
       // Check each matching rule
       for (var rule in matchingRules) {
@@ -284,10 +299,7 @@ class AlertService {
 
   // Save progress milestone
   Future<void> _saveProgressMilestone(String ruleId, double milestone) async {
-    await _firestore
-        .collection('progress_milestones')
-        .doc(ruleId)
-        .set({
+    await _firestore.collection('progress_milestones').doc(ruleId).set({
       'lastMilestone': milestone,
       'timestamp': DateTime.now().toIso8601String(),
     });
@@ -310,7 +322,8 @@ class AlertService {
         final rule = RuleModel.fromMap(doc.data());
         final category = rule.conditions['category'] as String?;
         final thresholdType = rule.conditions['thresholdType'] as String?;
-        final thresholdValue = (rule.conditions['thresholdValue'] as num?)?.toDouble() ?? 0.0;
+        final thresholdValue =
+            (rule.conditions['thresholdValue'] as num?)?.toDouble() ?? 0.0;
 
         if (category == null) continue;
 
@@ -342,7 +355,8 @@ class AlertService {
             'currentSpending': currentSpending,
             'budgetAmount': budget.amount, // Total budget amount
             'thresholdAmount': thresholdAmount, // Calculated threshold
-            'exceeded': currentSpending - thresholdAmount, // Amount over threshold
+            'exceeded':
+                currentSpending - thresholdAmount, // Amount over threshold
           });
         }
       }

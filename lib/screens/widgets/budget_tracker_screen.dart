@@ -27,7 +27,6 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
   void initState() {
     super.initState();
     _loadUserProfile();
-    _loadActualSpending();
   }
 
   Future<void> _loadUserProfile() async {
@@ -41,6 +40,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
           _currentUser = user;
           _isLoading = false;
         });
+        // Load spending after user is loaded to know the correct period
+        _loadActualSpending();
       }
     } catch (e) {
       if (mounted) {
@@ -53,10 +54,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddRuleScreen(
-          ruleType: 'allocation',
-          prefilledCategory: category,
-        ),
+        builder: (_) =>
+            AddRuleScreen(ruleType: 'allocation', prefilledCategory: category),
       ),
     );
 
@@ -71,10 +70,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddRuleScreen(
-          ruleType: 'allocation',
-          existingRule: allocationRule,
-        ),
+        builder: (_) =>
+            AddRuleScreen(ruleType: 'allocation', existingRule: allocationRule),
       ),
     );
 
@@ -86,10 +83,10 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
   }
 
   Future<void> _showAlertsBottomSheet(
-      String category,
-      BudgetModel? budget,
-      List<RuleModel> alertRules,
-      ) async {
+    String category,
+    BudgetModel? budget,
+    List<RuleModel> alertRules,
+  ) async {
     if (budget == null) return;
 
     await showModalBottomSheet(
@@ -210,11 +207,11 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                 else
                   ...alertRules.map((alert) {
                     final thresholdType =
-                    alert.conditions['thresholdType'] as String?;
+                        alert.conditions['thresholdType'] as String?;
                     final thresholdValue =
                         (alert.conditions['thresholdValue'] as num?)
                             ?.toDouble() ??
-                            0.0;
+                        0.0;
 
                     double thresholdAmount = thresholdValue;
                     if (thresholdType == 'percentage') {
@@ -222,7 +219,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                     }
 
                     bool isTriggered = budget.spent >= thresholdAmount;
-                    bool isPassed = alert.lastTriggered != null &&
+                    bool isPassed =
+                        alert.lastTriggered != null &&
                         budget.spent < thresholdAmount;
 
                     String status = 'Active';
@@ -289,8 +287,9 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: _getPriorityColor(alert.priority)
-                                      .withValues(alpha: 0.2),
+                                  color: _getPriorityColor(
+                                    alert.priority,
+                                  ).withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
@@ -322,7 +321,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                                       thresholdType == 'percentage'
                                           ? '${thresholdValue.toStringAsFixed(0)}% (${CurrencyFormatter.format(thresholdAmount)})'
                                           : CurrencyFormatter.format(
-                                          thresholdValue),
+                                              thresholdValue,
+                                            ),
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -434,10 +434,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddRuleScreen(
-          ruleType: 'alert',
-          prefilledCategory: category,
-        ),
+        builder: (_) =>
+            AddRuleScreen(ruleType: 'alert', prefilledCategory: category),
       ),
     );
 
@@ -452,10 +450,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddRuleScreen(
-          ruleType: 'alert',
-          existingRule: alertRule,
-        ),
+        builder: (_) =>
+            AddRuleScreen(ruleType: 'alert', existingRule: alertRule),
       ),
     );
 
@@ -490,21 +486,32 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
   Future<void> _loadActualSpending() async {
     try {
       final now = DateTime.now();
-      final startOfMonth = DateTime(now.year, now.month, 1);
+      DateTime startDate;
+
+      // Determine start date based on income type
+      if (_currentUser?.incomeType == 'variable') {
+        // Weekly start (Monday)
+        startDate = now.subtract(Duration(days: now.weekday - 1));
+        startDate = DateTime(startDate.year, startDate.month, startDate.day);
+      } else {
+        // Monthly start
+        startDate = DateTime(now.year, now.month, 1);
+      }
 
       final snapshot = await FirebaseFirestore.instance
           .collection('transactions')
           .doc(_firebaseService.currentUserId)
           .collection('userTransactions')
           .where('type', isEqualTo: 'expense')
-          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
           .get();
 
       final Map<String, double> categoryTotals = {};
       for (var doc in snapshot.docs) {
         final transaction = TransactionModel.fromMap(doc.data());
         categoryTotals[transaction.category] =
-            (categoryTotals[transaction.category] ?? 0) + transaction.actualExpenseAmount;
+            (categoryTotals[transaction.category] ?? 0) +
+            transaction.actualExpenseAmount;
       }
 
       if (mounted) {
@@ -548,12 +555,17 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
 
     switch (_currentUser!.incomeType) {
       case 'variable':
-      case 'hybrid':
         return 'Weekly';
+      case 'hybrid':
       case 'fixed':
       default:
         return 'Monthly';
     }
+  }
+
+  DateTime _getWeekStart(DateTime date) {
+    final monday = date.subtract(Duration(days: date.weekday - 1));
+    return DateTime(monday.year, monday.month, monday.day);
   }
 
   @override
@@ -590,14 +602,38 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
 
               final budgets = budgetSnapshot.data ?? [];
               final allRules = ruleSnapshot.data ?? [];
-              final allocationRules =
-              allRules.where((r) => r.type == 'allocation').toList();
-              final alertRules =
-              allRules.where((r) => r.type == 'alert').toList();
+              final allocationRules = allRules
+                  .where((r) => r.type == 'allocation')
+                  .toList();
+              final alertRules = allRules
+                  .where((r) => r.type == 'alert')
+                  .toList();
+
+              // Determine target period
+              final targetPeriod = _currentUser?.incomeType == 'variable'
+                  ? 'weekly'
+                  : 'monthly';
+
+              final now = DateTime.now();
+              final weekStart = _getWeekStart(now);
 
               final budgetsByCategory = <String, BudgetModel>{};
               for (var budget in budgets) {
-                budgetsByCategory[budget.category] = budget;
+                // Only include budgets that match the target period
+                if (budget.period == targetPeriod) {
+                  // For weekly budgets, ensure they are for the current week
+                  if (targetPeriod == 'weekly') {
+                    // Check if budget start date matches current week start
+                    // We compare year, month, day to avoid time issues
+                    if (budget.startDate.year == weekStart.year &&
+                        budget.startDate.month == weekStart.month &&
+                        budget.startDate.day == weekStart.day) {
+                      budgetsByCategory[budget.category] = budget;
+                    }
+                  } else {
+                    budgetsByCategory[budget.category] = budget;
+                  }
+                }
               }
 
               final allocationsByCategory = <String, RuleModel>{};
@@ -612,21 +648,28 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
               for (var rule in alertRules) {
                 final category = rule.conditions['category'] as String?;
                 if (category != null) {
-                  alertsByCategory[category] =
-                  [...(alertsByCategory[category] ?? []), rule];
+                  alertsByCategory[category] = [
+                    ...(alertsByCategory[category] ?? []),
+                    rule,
+                  ];
                 }
               }
 
               final trackedCategories = <String>[];
               final untrackedCategories = <String>[];
 
+              // First, handle standard categories
               for (var category in CategoryConstants.expenseCategories) {
                 final budget = budgetsByCategory[category];
-                final hasAllocation = allocationsByCategory.containsKey(category);
+                final hasAllocation = allocationsByCategory.containsKey(
+                  category,
+                );
                 final hasSpending = budget != null && budget.spent > 0;
                 final hasBudgetAmount = budget != null && budget.amount > 0;
 
-                if (hasAllocation || hasBudgetAmount || hasSpending ||
+                if (hasAllocation ||
+                    hasBudgetAmount ||
+                    hasSpending ||
                     (budget != null && budget.amount > 0)) {
                   trackedCategories.add(category);
                 } else {
@@ -708,10 +751,7 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                       const SizedBox(height: 8),
                       Text(
                         'No budget set, auto-allocate your budget',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                       const SizedBox(height: 16),
                       ...untrackedCategories.map((category) {
@@ -769,13 +809,13 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
         boxShadow: isDimmed
             ? null
             : [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            spreadRadius: 1,
-            blurRadius: 3,
-            offset: const Offset(0, 1),
-          ),
-        ],
+                BoxShadow(
+                  color: Colors.grey.withValues(alpha: 0.1),
+                  spreadRadius: 1,
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
+                ),
+              ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -785,8 +825,9 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: CategoryConstants.getColor(category)
-                      .withValues(alpha: isDimmed ? 0.3 : 0.1),
+                  color: CategoryConstants.getColor(
+                    category,
+                  ).withValues(alpha: isDimmed ? 0.3 : 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -841,10 +882,7 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                     else
                       Text(
                         'No budget set',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey[500],
-                        ),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                       ),
                   ],
                 ),
@@ -860,22 +898,34 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                     }
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: (alertRules.isNotEmpty ? AppTheme.red : AppTheme.primaryBlue)
-                          .withValues(alpha: 0.1),
+                      color:
+                          (alertRules.isNotEmpty
+                                  ? AppTheme.red
+                                  : AppTheme.primaryBlue)
+                              .withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: alertRules.isNotEmpty ? AppTheme.red : AppTheme.primaryBlue,
+                        color: alertRules.isNotEmpty
+                            ? AppTheme.red
+                            : AppTheme.primaryBlue,
                       ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          alertRules.isNotEmpty ? Icons.notifications_active : Icons.add_alert,
+                          alertRules.isNotEmpty
+                              ? Icons.notifications_active
+                              : Icons.add_alert,
                           size: 14,
-                          color: alertRules.isNotEmpty ? AppTheme.red : AppTheme.primaryBlue,
+                          color: alertRules.isNotEmpty
+                              ? AppTheme.red
+                              : AppTheme.primaryBlue,
                         ),
                         if (alertRules.isNotEmpty) ...[
                           const SizedBox(width: 4),
@@ -943,10 +993,7 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                         const SizedBox(height: 2),
                         Text(
                           'Set budget to track this',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: AppTheme.red,
-                          ),
+                          style: TextStyle(fontSize: 11, color: AppTheme.red),
                         ),
                       ],
                     ),
@@ -1004,7 +1051,9 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                 ),
               ),
               Text(
-                CurrencyFormatter.format(_actualSpending[category] ?? budget?.spent ??  0.0),
+                CurrencyFormatter.format(
+                  _actualSpending[category] ?? budget?.spent ?? 0.0,
+                ),
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -1098,8 +1147,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                       color: AppTheme.green.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(
-                      'AUTO-SYNCED',
+                    child: const Text(
+                      'ALERT',
                       style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
@@ -1107,6 +1156,34 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                       ),
                     ),
                   ),
+                if (budget.isAutoCreated)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'AUTO',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purple,
+                      ),
+                    ),
+                  ),
+
+                // ),
+                //   'AUTO-SYNCED',
+                //   style: TextStyle(
+                //     fontSize: 9,
+                //     fontWeight: FontWeight.bold,
+                //     color: AppTheme.green,
+                //   ),
+                // ),
                 if (alertRules.isNotEmpty)
                   Container(
                     padding: const EdgeInsets.symmetric(
