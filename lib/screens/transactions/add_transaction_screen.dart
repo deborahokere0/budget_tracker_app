@@ -40,9 +40,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   List<RuleModel> _savingsRules = [];
   UserModel? _currentUser;
 
-  List<String> get _currentCategories => _transactionType == 'income'
-      ? CategoryConstants.incomeCategories
-      : CategoryConstants.expenseCategories;
+  List<String> get _currentCategories {
+    if (_transactionType == 'expense') {
+      return CategoryConstants.expenseCategories;
+    }
+
+    // For income, filter out Salary for variable earners
+    if (_currentUser?.incomeType == 'variable') {
+      return CategoryConstants.incomeCategories
+          .where((category) => category != 'Salary')
+          .toList();
+    }
+
+    return CategoryConstants.incomeCategories;
+  }
 
   @override
   void initState() {
@@ -50,7 +61,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (widget.initialTransactionType != null) {
       _transactionType = widget.initialTransactionType!;
     }
-    _selectedCategory = _currentCategories.first;
+    // Initialize with a safe default
+    _selectedCategory = CategoryConstants.incomeCategories.first;
     _loadSavingsRules();
     _loadUserProfile();
   }
@@ -61,7 +73,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         _firebaseService.currentUserId!,
       );
       if (mounted) {
-        setState(() => _currentUser = user);
+        setState(() {
+          _currentUser = user;
+
+          // Re-validate selected category after user profile loads
+          // This ensures if 'Salary' was selected by default but user is variable,
+          // we switch to a valid category
+          if (!_currentCategories.contains(_selectedCategory)) {
+            _selectedCategory = _currentCategories.first;
+          }
+        });
       }
     }
   }
@@ -553,8 +574,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   }
                 },
               ),
-
-              const SizedBox(height: 16),
 
               // Source Field (Income Only) - Moved here
               if (_transactionType == 'income') ...[
