@@ -179,29 +179,57 @@ class _VariableEarnerDashboardState extends State<VariableEarnerDashboard> {
                       children: [
                         const Text(
                           'RUNWAY PERIOD',
-                          style: TextStyle(color: Colors.white70, fontSize: 10),
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
                         ),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.warning,
-                              color: runwayStatus == 'HEALTHY'
-                                  ? Colors.green
-                                  : Colors.red,
-                              size: 16,
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                (runwayStatus == 'HEALTHY'
+                                        ? Colors.green
+                                        : Colors.red)
+                                    .withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color:
+                                  (runwayStatus == 'HEALTHY'
+                                          ? Colors.green
+                                          : Colors.red)
+                                      .withOpacity(0.5),
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '$runwayWeeks weeks',
-                              style: TextStyle(
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.timer,
                                 color: runwayStatus == 'HEALTHY'
                                     ? Colors.green
                                     : Colors.red,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
+                                size: 14,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 4),
+                              Text(
+                                '$runwayWeeks weeks',
+                                style: TextStyle(
+                                  color: runwayStatus == 'HEALTHY'
+                                      ? Colors.green
+                                      : Colors.red,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -318,16 +346,17 @@ class _VariableEarnerDashboardState extends State<VariableEarnerDashboard> {
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppTheme.primaryBlue.withOpacity(0.1),
-            AppTheme.green.withOpacity(0.1),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.3)),
+        color: AppTheme.primaryBlue,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryBlue.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -337,33 +366,47 @@ class _VariableEarnerDashboardState extends State<VariableEarnerDashboard> {
             children: [
               const Text(
                 'Auto-Allocation Status',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              Text(
-                '${allocationPercent.toStringAsFixed(0)}%',
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryBlue,
+                  color: Colors.white,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${allocationPercent.toStringAsFixed(0)}%',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
           // Progress Bar
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
               value: allocationPercent / 100,
-              minHeight: 8,
-              backgroundColor: Colors.grey[300],
+              minHeight: 12,
+              backgroundColor: Colors.white.withOpacity(0.2),
               valueColor: AlwaysStoppedAnimation<Color>(
-                allocationPercent > 80 ? Colors.green : AppTheme.primaryBlue,
+                allocationPercent > 80 ? AppTheme.green : Colors.white,
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
 
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -373,13 +416,15 @@ class _VariableEarnerDashboardState extends State<VariableEarnerDashboard> {
                 children: [
                   Text(
                     'Allocated',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
                   ),
+                  const SizedBox(height: 4),
                   Text(
                     CurrencyFormatter.format(totalAllocated),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Colors.green,
+                      color: Colors.white,
+                      fontSize: 18,
                     ),
                   ),
                 ],
@@ -389,13 +434,15 @@ class _VariableEarnerDashboardState extends State<VariableEarnerDashboard> {
                 children: [
                   Text(
                     'Unallocated',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
                   ),
+                  const SizedBox(height: 4),
                   Text(
                     CurrencyFormatter.format(unallocated),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Colors.orange,
+                      color: unallocated > 0 ? AppTheme.orange : Colors.white,
+                      fontSize: 18,
                     ),
                   ),
                 ],
@@ -510,7 +557,7 @@ class _VariableEarnerDashboardState extends State<VariableEarnerDashboard> {
     final isOverBudget = actualSpent > budget.amount;
 
     return Container(
-      width: 160,
+      width: 180,
       margin: const EdgeInsets.only(right: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -533,16 +580,30 @@ class _VariableEarnerDashboardState extends State<VariableEarnerDashboard> {
         children: [
           Row(
             children: [
-              Text(
-                _getCategoryIcon(budget.category),
-                style: const TextStyle(fontSize: 24),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: CategoryConstants.getColor(
+                    budget.category,
+                  ).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  CategoryConstants.getIcon(budget.category),
+                  color: CategoryConstants.getColor(budget.category),
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 8),
-              Text(
-                budget.category,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+              Expanded(
+                child: Text(
+                  budget.category,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -551,7 +612,7 @@ class _VariableEarnerDashboardState extends State<VariableEarnerDashboard> {
           Text(
             CurrencyFormatter.format(actualSpent),
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
               color: isOverBudget ? AppTheme.red : Colors.black87,
             ),
@@ -799,52 +860,75 @@ class _VariableEarnerDashboardState extends State<VariableEarnerDashboard> {
                 : CurrencyFormatter.format(rule.allocationValue ?? 0);
 
             return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: rule.isActive
-                    ? Colors.green.withOpacity(0.05)
-                    : Colors.grey.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(8),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    spreadRadius: 1,
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
                 border: Border.all(
                   color: rule.isActive
-                      ? Colors.green.withOpacity(0.3)
+                      ? AppTheme.green.withOpacity(0.5)
                       : Colors.grey.withOpacity(0.3),
+                  width: 1.5,
                 ),
               ),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.auto_awesome,
-                    color: rule.isActive ? Colors.green : Colors.grey,
-                    size: 20,
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: rule.isActive
+                          ? AppTheme.green.withOpacity(0.1)
+                          : Colors.grey.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.auto_awesome,
+                      color: rule.isActive ? AppTheme.green : Colors.grey,
+                      size: 24,
+                    ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           rule.name,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
+                        const SizedBox(height: 4),
                         Text(
                           '${rule.incomeSource == "all" ? "All income" : rule.incomeSource} → '
                           '$allocationText to ${rule.targetCategory}',
                           style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
+                            fontSize: 13,
+                            color: Colors.grey[700],
                           ),
                         ),
                         if (rule.weeklyAllocatedAmount != null &&
-                            rule.weeklyAllocatedAmount! > 0)
+                            rule.weeklyAllocatedAmount! > 0) ...[
+                          const SizedBox(height: 4),
                           Text(
                             'This week: ${CurrencyFormatter.format(rule.weeklyAllocatedAmount!)}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.green,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.green,
                             ),
                           ),
+                        ],
                       ],
                     ),
                   ),
@@ -901,23 +985,6 @@ class _VariableEarnerDashboardState extends State<VariableEarnerDashboard> {
       'Dec',
     ];
     return months[month - 1];
-  }
-
-  String _getCategoryIcon(String category) {
-    switch (category.toLowerCase()) {
-      case 'food':
-        return '🍔';
-      case 'transport':
-        return '🚗';
-      case 'data':
-        return '💾';
-      case 'entertainment':
-        return '🎬';
-      case 'utilities':
-        return '💡';
-      default:
-        return '📦';
-    }
   }
 
   void _navigateToAddTransaction(String type) {
