@@ -767,6 +767,32 @@ class FirebaseService {
         });
   }
 
+  Future<List<String>> getUniqueIncomeSources() async {
+    if (currentUserId == null) return [];
+
+    try {
+      final snapshot = await _firestore
+          .collection('transactions')
+          .doc(currentUserId)
+          .collection('userTransactions')
+          .where('type', isEqualTo: 'income')
+          .get();
+
+      final sources = snapshot.docs
+          .map((doc) => doc.data()['source'] as String?)
+          .where((source) => source != null && source.isNotEmpty)
+          .map((source) => source!)
+          .toSet()
+          .toList();
+
+      sources.sort();
+      return sources;
+    } catch (e) {
+      print('Error getting unique income sources: $e');
+      return [];
+    }
+  }
+
   Future<void> deleteTransaction(String transactionId) async {
     try {
       final doc = await _firestore

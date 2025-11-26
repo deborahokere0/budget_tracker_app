@@ -44,7 +44,7 @@ class IncomeAllocationService {
       if (remainingIncome <= 0) break;
 
       // Check if rule applies to this income source
-      if (!rule.appliesToIncomeSource(transaction.category)) {
+      if (!rule.appliesToIncomeSource(transaction.source ?? '')) {
         continue;
       }
 
@@ -108,7 +108,7 @@ class IncomeAllocationService {
       final transaction = TransactionModel.fromMap(doc.data());
 
       // Check if rule applies
-      if (!rule.appliesToIncomeSource(transaction.category)) {
+      if (!rule.appliesToIncomeSource(transaction.source ?? '')) {
         continue;
       }
 

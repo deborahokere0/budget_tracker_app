@@ -40,16 +40,12 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
   double _totalAllocationPercent = 0.0;
 
   // Income allocation specific fields
-  String _incomeSource = 'all';
+  String? _incomeSource;
   String _allocationType = 'percentage';
   String _targetCategory = CategoryConstants.expenseCategories.first;
   String _amountType = 'amount';
   String _thresholdType = 'amount';
-
-  List<String> get incomeSourceOptions => [
-    'all',
-    ...CategoryConstants.incomeCategories,
-  ];
+  List<String> _userIncomeSources = [];
 
   @override
   void initState() {
@@ -72,6 +68,27 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
     if (widget.ruleType == 'allocation') {
       _calculateTotalAllocation();
     }
+    if (widget.ruleType == 'income_allocation' ||
+        (widget.ruleType == 'allocation' &&
+            _currentUser?.incomeType == 'variable')) {
+      _loadIncomeSources();
+    }
+  }
+
+  Future<void> _loadIncomeSources() async {
+    final sources = await _firebaseService.getUniqueIncomeSources();
+    if (mounted) {
+      setState(() {
+        _userIncomeSources = sources;
+        if (widget.existingRule != null &&
+            widget.existingRule!.incomeSource != null &&
+            sources.contains(widget.existingRule!.incomeSource)) {
+          _incomeSource = widget.existingRule!.incomeSource;
+        } else if (sources.isNotEmpty) {
+          _incomeSource = sources.first;
+        }
+      });
+    }
   }
 
   void _prefillExistingRule() {
@@ -82,7 +99,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
 
     switch (rule.type) {
       case 'income_allocation':
-        _incomeSource = rule.incomeSource ?? 'all';
+        // _incomeSource will be set in _loadIncomeSources if it exists in the list
         _allocationType = rule.allocationType ?? 'percentage';
         _amountController.text = rule.allocationValue?.toString() ?? '';
         _targetCategory =
@@ -124,6 +141,9 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         setState(() => _currentUser = user);
         if (widget.ruleType == 'allocation') {
           _calculateTotalAllocation();
+          if (_currentUser?.incomeType == 'variable') {
+            _loadIncomeSources();
+          }
         }
       }
     } catch (e) {
@@ -324,22 +344,45 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
     return Column(
       children: [
         // Income Source Selector
-        DropdownButtonFormField<String>(
-          initialValue: _incomeSource,
-          decoration: const InputDecoration(
-            labelText: 'Apply to Income From',
-            border: OutlineInputBorder(),
-            filled: true,
-            fillColor: Colors.white,
+        // Income Source Selector
+        if (_userIncomeSources.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'No income sources found. Please add an income transaction with a source first.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          DropdownButtonFormField<String>(
+            value: _incomeSource,
+            decoration: const InputDecoration(
+              labelText: 'Apply to Income From',
+              border: OutlineInputBorder(),
+              filled: true,
+              fillColor: Colors.white,
+            ),
+            items: _userIncomeSources.map((source) {
+              return DropdownMenuItem(value: source, child: Text(source));
+            }).toList(),
+            onChanged: (value) => setState(() => _incomeSource = value!),
+            validator: (value) =>
+                value == null ? 'Please select an income source' : null,
           ),
-          items: incomeSourceOptions.map((source) {
-            return DropdownMenuItem(
-              value: source,
-              child: Text(source == 'all' ? 'All Income Sources' : source),
-            );
-          }).toList(),
-          onChanged: (value) => setState(() => _incomeSource = value!),
-        ),
+        const SizedBox(height: 16),
         const SizedBox(height: 16),
 
         // Allocation Type
@@ -461,9 +504,9 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
                     const SizedBox(height: 4),
                     Text(
                       _allocationType == 'percentage'
-                          ? 'Every time you receive ${_incomeSource == "all" ? "any income" : _incomeSource}, '
+                          ? 'Every time you receive ${_incomeSource ?? "income"}, '
                                 '${_amountController.text.isEmpty ? "X" : _amountController.text}% will be allocated to $_targetCategory weekly budget.'
-                          : 'Every time you receive ${_incomeSource == "all" ? "any income" : _incomeSource}, '
+                          : 'Every time you receive ${_incomeSource ?? "income"}, '
                                 '₦${_amountController.text.isEmpty ? "X" : _amountController.text} will be allocated to $_targetCategory weekly budget.',
                       style: const TextStyle(fontSize: 12),
                     ),
@@ -806,7 +849,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
           widget.ruleType == 'allocation') {
         await _firebaseService.createIncomeAllocationRule(
           ruleName: _nameController.text.trim(),
-          incomeSource: _incomeSource,
+          incomeSource: _incomeSource!,
           allocationType: _allocationType,
           allocationValue: double.parse(_amountController.text),
           targetCategory: _targetCategory,
