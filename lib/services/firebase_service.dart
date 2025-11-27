@@ -1145,6 +1145,10 @@ class FirebaseService {
         // If it's an alert rule, reset its linked budget
         if (rule.type == 'allocation') {
           await _resetBudgetFromAllocation(ruleId);
+        } else if (rule.type == 'income_allocation') {
+          // If it's an income allocation rule, reverse the allocation
+          final allocationService = IncomeAllocationService(currentUserId!);
+          await allocationService.reverseAllocation(rule);
         }
 
         await doc.reference.delete();

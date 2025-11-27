@@ -135,6 +135,85 @@ class IncomeAllocationService {
     }
   }
 
+  /// Reverse allocation for a deleted rule
+  /// Deducts the weekly allocated amount from the corresponding budget
+  Future<void> reverseAllocation(RuleModel rule) async {
+    if (rule.targetCategory == null ||
+        rule.weeklyAllocatedAmount == null ||
+        rule.weeklyAllocatedAmount! <= 0) {
+      return;
+    }
+
+    final amountToReverse = rule.weeklyAllocatedAmount!;
+    final category = rule.targetCategory!;
+
+    print(
+      'Reversing allocation for rule "${rule.name}": Deducting $amountToReverse from $category',
+    );
+
+    // Get current user to determine budget period
+    final user = await _firestore
+        .collection('users')
+        .doc(userId)
+        .get()
+        .then((doc) => UserModel.fromMap(doc.data()!));
+
+    final now = DateTime.now();
+    DateTime startDate;
+    String period;
+
+    // Determine period based on income type
+    if (user.incomeType == 'variable') {
+      // Variable -> Weekly
+      period = 'weekly';
+      startDate = _getWeekStart(now);
+    } else {
+      // Fixed or Hybrid -> Monthly
+      period = 'monthly';
+      startDate = DateTime(now.year, now.month, 1);
+    }
+
+    // Find the budget
+    final existingBudgetQuery = await _firestore
+        .collection('budgets')
+        .doc(userId)
+        .collection('userBudgets')
+        .where('category', isEqualTo: category)
+        .where('period', isEqualTo: period)
+        .where('startDate', isGreaterThanOrEqualTo: startDate.toIso8601String())
+        .limit(1)
+        .get();
+
+    if (existingBudgetQuery.docs.isNotEmpty) {
+      final existingDoc = existingBudgetQuery.docs.first;
+      final existingBudget = BudgetModel.fromMap(existingDoc.data());
+
+      // Calculate new amount (ensure it doesn't go below 0 or spent amount)
+      double newAmount = existingBudget.amount - amountToReverse;
+      if (newAmount < 0) newAmount = 0;
+
+      // Ideally we shouldn't reduce budget below what's already spent,
+      // but for allocation reversal we strictly reverse what was added.
+      // If spent > newAmount, it will just show as over budget, which is correct.
+
+      await _firestore
+          .collection('budgets')
+          .doc(userId)
+          .collection('userBudgets')
+          .doc(existingDoc.id)
+          .update({'amount': newAmount});
+
+      print('Updated $period budget for $category: -$amountToReverse');
+
+      // Send notification about reversal
+      await NotificationService.sendReminderNotification(
+        title: 'Budget Updated',
+        body:
+            'Removed ₦${amountToReverse.toStringAsFixed(2)} from $category budget due to rule deletion',
+      );
+    }
+  }
+
   /// Get all active income allocation rules
   Future<List<RuleModel>> _getActiveIncomeAllocationRules() async {
     final snapshot = await _firestore
