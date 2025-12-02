@@ -61,8 +61,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (widget.initialTransactionType != null) {
       _transactionType = widget.initialTransactionType!;
     }
-    // Initialize with a safe default
-    _selectedCategory = CategoryConstants.incomeCategories.first;
+    // Initialize with a safe default based on type
+    if (_transactionType == 'expense') {
+      _selectedCategory = CategoryConstants.expenseCategories.first;
+    } else {
+      _selectedCategory = CategoryConstants.incomeCategories.first;
+    }
     _loadSavingsRules();
     _loadUserProfile();
   }
@@ -542,7 +546,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
               // Category Dropdown
               DropdownButtonFormField<String>(
-                initialValue: _selectedCategory,
+                value: _selectedCategory,
                 decoration: InputDecoration(
                   labelText: 'Category',
                   prefixIcon: Icon(
@@ -584,7 +588,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                     labelText: _currentUser?.incomeType == 'variable'
                         ? 'Income Source'
                         : 'Income Source (Optional)',
-                    hintText: 'e.g., Salary, Upwork, Uber',
+                    hintText: 'e.g., Upwork, Salary, Uber',
                     prefixIcon: const Icon(Icons.source),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -686,7 +690,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       if (_saveToSavings) ...[
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
-                          initialValue: _selectedSavingsRule,
+                          value: _selectedSavingsRule,
                           decoration: InputDecoration(
                             labelText: 'Select Savings Goal',
                             prefixIcon: const Icon(Icons.flag),

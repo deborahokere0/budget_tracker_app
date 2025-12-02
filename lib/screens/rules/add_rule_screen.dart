@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/firebase_service.dart';
+import '../../services/income_allocation_service.dart';
 import '../../models/rule_model.dart';
 import '../../models/user_model.dart';
 import '../../theme/app_theme.dart';
@@ -32,6 +33,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
   final FirebaseService _firebaseService = FirebaseService();
 
   String _selectedCategory = CategoryConstants.expenseCategories.first;
+  //double _allocationPercent = 10.0;
   int _priority = 1;
   bool _isActive = true;
   bool _isLoading = false;
@@ -39,13 +41,15 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
   UserModel? _currentUser;
   double _totalAllocationPercent = 0.0;
 
-  // Income allocation specific fields
-  String? _incomeSource;
-  String _allocationType = 'percentage';
-  String _targetCategory = CategoryConstants.expenseCategories.first;
-  String _amountType = 'amount';
-  String _thresholdType = 'amount';
+  // Variable earner income allocation fields
   List<String> _userIncomeSources = [];
+  String? _selectedIncomeSource;
+  String _incomeAllocationType = 'percentage'; // 'percentage' or 'fixed'
+  String _targetCategory = CategoryConstants.expenseCategories.first;
+  double _totalWeeklyIncome = 0.0;
+  double _totalPercentageAllocated = 0.0;
+  double _totalFixedAllocated = 0.0;
+  bool _isLoadingIncomeData = false;
 
   @override
   void initState() {
@@ -54,7 +58,6 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
       _prefillExistingRule();
     } else if (widget.prefilledCategory != null) {
       _selectedCategory = widget.prefilledCategory!;
-      _targetCategory = widget.prefilledCategory!;
       if (widget.ruleType == 'allocation') {
         _nameController.text = '${widget.prefilledCategory} Budget Allocation';
       } else if (widget.ruleType == 'alert') {
@@ -68,27 +71,6 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
     if (widget.ruleType == 'allocation') {
       _calculateTotalAllocation();
     }
-    if (widget.ruleType == 'income_allocation' ||
-        (widget.ruleType == 'allocation' &&
-            _currentUser?.incomeType == 'variable')) {
-      _loadIncomeSources();
-    }
-  }
-
-  Future<void> _loadIncomeSources() async {
-    final sources = await _firebaseService.getUniqueIncomeSources();
-    if (mounted) {
-      setState(() {
-        _userIncomeSources = sources;
-        if (widget.existingRule != null &&
-            widget.existingRule!.incomeSource != null &&
-            sources.contains(widget.existingRule!.incomeSource)) {
-          _incomeSource = widget.existingRule!.incomeSource;
-        } else if (sources.isNotEmpty) {
-          _incomeSource = sources.first;
-        }
-      });
-    }
   }
 
   void _prefillExistingRule() {
@@ -98,13 +80,6 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
     _isActive = rule.isActive;
 
     switch (rule.type) {
-      case 'income_allocation':
-        // _incomeSource will be set in _loadIncomeSources if it exists in the list
-        _allocationType = rule.allocationType ?? 'percentage';
-        _amountController.text = rule.allocationValue?.toString() ?? '';
-        _targetCategory =
-            rule.targetCategory ?? CategoryConstants.expenseCategories.first;
-        break;
       case 'allocation':
         _selectedCategory =
             rule.conditions['category'] ??
@@ -124,6 +99,7 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         _selectedCategory =
             rule.conditions['category'] ??
             CategoryConstants.expenseCategories.first;
+        // _amountController.text = rule.conditions['threshold']?.toString() ?? '';
         _thresholdType =
             rule.conditions['thresholdType'] as String? ?? 'amount';
         final thresholdValue = rule.conditions['thresholdValue'] as num? ?? 0.0;
@@ -141,13 +117,72 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         setState(() => _currentUser = user);
         if (widget.ruleType == 'allocation') {
           _calculateTotalAllocation();
-          if (_currentUser?.incomeType == 'variable') {
+          // Load income sources for variable earners
+          if (user?.incomeType == 'variable') {
             _loadIncomeSources();
           }
         }
       }
     } catch (e) {
       print('Error loading user profile: $e');
+    }
+  }
+
+  /// Load income sources for variable earners
+  Future<void> _loadIncomeSources() async {
+    try {
+      final sources = await _firebaseService.getUniqueIncomeSources();
+      if (mounted) {
+        setState(() {
+          _userIncomeSources = sources;
+          if (sources.isNotEmpty) {
+            _selectedIncomeSource = sources.first;
+          }
+        });
+        // Load allocation data for the first source
+        if (_selectedIncomeSource != null) {
+          _loadIncomeAllocationData(_selectedIncomeSource!);
+        }
+      }
+    } catch (e) {
+      print('Error loading income sources: $e');
+    }
+  }
+
+  /// Load allocation data for a specific income source
+  Future<void> _loadIncomeAllocationData(String source) async {
+    if (_currentUser == null) return;
+
+    setState(() => _isLoadingIncomeData = true);
+
+    try {
+      final allocationService = IncomeAllocationService(_currentUser!.uid);
+
+      // Get all the data we need
+      final totalIncome = await allocationService.getTotalWeeklyIncome(source);
+      final totalPercentage = await allocationService
+          .getTotalPercentageAllocated(
+            source,
+            excludeRuleId: widget.existingRule?.id,
+          );
+      final totalFixed = await allocationService.getTotalFixedAllocated(
+        source,
+        excludeRuleId: widget.existingRule?.id,
+      );
+
+      if (mounted) {
+        setState(() {
+          _totalWeeklyIncome = totalIncome;
+          _totalPercentageAllocated = totalPercentage;
+          _totalFixedAllocated = totalFixed;
+          _isLoadingIncomeData = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading income allocation data: $e');
+      if (mounted) {
+        setState(() => _isLoadingIncomeData = false);
+      }
     }
   }
 
@@ -165,6 +200,8 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
           .toList();
 
       double total = 0.0;
+
+      // Get user's monthly income
       final monthlyIncome = _currentUser?.monthlyIncome ?? 0.0;
 
       if (monthlyIncome == 0) {
@@ -178,13 +215,16 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         final amountType = rule.conditions['amountType'] as String? ?? 'amount';
         final amountValue =
             (rule.conditions['amountValue'] as num?)?.toDouble() ?? 0.0;
+
         double percentageValue = 0.0;
 
         if (amountType == 'percentage') {
           percentageValue = amountValue;
         } else if (amountType == 'amount') {
+          // Convert amount to percentage
           percentageValue = (amountValue / monthlyIncome) * 100;
         }
+
         total += percentageValue;
       }
 
@@ -196,171 +236,967 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
     }
   }
 
-  double _getTotalAllocation() {
-    if (_currentUser?.monthlyIncome == null ||
-        _currentUser!.monthlyIncome! <= 0) {
-      return _totalAllocationPercent;
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _amountController.dispose();
+    _goalNameController.dispose();
+    _targetAmountController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveRule() async {
+    if (_formKey.currentState!.validate()) {
+      // Validate monthly income for fixed income users
+      if (widget.ruleType == 'allocation' &&
+          _currentUser?.incomeType == 'fixed') {
+        if (_currentUser?.monthlyIncome == null ||
+            _currentUser!.monthlyIncome! <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Monthly income can\'t be 0. Please update your profile with your income',
+              ),
+              backgroundColor: AppTheme.red,
+            ),
+          );
+          return;
+        }
+      }
+
+      // Validate for variable earners
+      if (widget.ruleType == 'allocation' &&
+          _currentUser?.incomeType == 'variable') {
+        // Allow saving if no income this week (rule will apply to future income)
+        if (_totalWeeklyIncome > 0 && !_canSaveIncomeAllocation()) {
+          final error = _validateIncomeAllocation();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                error ?? 'Cannot save allocation. Check your input.',
+              ),
+              backgroundColor: AppTheme.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+          return;
+        }
+      }
+
+      // Validate allocation doesn't exceed 100% for fixed earners
+      if (widget.ruleType == 'allocation' &&
+          _currentUser?.incomeType != 'variable') {
+        final totalAllocation = _getTotalAllocation();
+        if (totalAllocation > 100) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Total allocation would be ${totalAllocation.toStringAsFixed(0)}%. Cannot exceed 100%',
+              ),
+              backgroundColor: AppTheme.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+          return;
+        }
+      }
+
+      setState(() => _isLoading = true);
+
+      // Handle variable earner allocation differently
+      if (widget.ruleType == 'allocation' &&
+          _currentUser?.incomeType == 'variable') {
+        try {
+          await _firebaseService.createIncomeAllocationRule(
+            ruleName: _nameController.text,
+            incomeSource: _selectedIncomeSource!,
+            allocationType: _incomeAllocationType,
+            allocationValue: double.parse(_amountController.text),
+            targetCategory: _targetCategory,
+            priority: _priority,
+          );
+
+          if (mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Income allocation rule created successfully'),
+                backgroundColor: AppTheme.green,
+              ),
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error saving rule: $e'),
+                backgroundColor: AppTheme.red,
+              ),
+            );
+          }
+        } finally {
+          if (mounted) {
+            setState(() => _isLoading = false);
+          }
+        }
+        return;
+      }
+
+      // Handle other rule types (fixed earner allocation, savings, alert, etc.)
+      Map<String, dynamic> conditions = {};
+      Map<String, dynamic> actions = {};
+      double? targetAmount;
+      double? currentAmount;
+      String? goalName;
+      bool? isPiggyBank;
+
+      // Build conditions based on rule type
+      switch (widget.ruleType) {
+        case 'allocation':
+          conditions['category'] = _selectedCategory;
+          conditions['amountType'] = _amountType;
+          conditions['amountValue'] =
+              double.tryParse(_amountController.text) ?? 0;
+          break;
+
+        case 'savings':
+          isPiggyBank = _isPiggyBank;
+          if (!_isPiggyBank) {
+            goalName = _goalNameController.text;
+            targetAmount = double.tryParse(_targetAmountController.text) ?? 0;
+            currentAmount = widget.existingRule?.currentAmount ?? 0.0;
+          }
+          break;
+
+        case 'alert':
+          conditions['category'] = _selectedCategory;
+          conditions['thresholdType'] =
+              _thresholdType; // 'amount' or 'percentage'
+          conditions['thresholdValue'] =
+              double.tryParse(_amountController.text) ?? 0;
+          actions['sendNotification'] = true;
+          break;
+
+        case 'boost':
+          conditions['category'] = _selectedCategory;
+          actions['boostAmount'] = double.tryParse(_amountController.text) ?? 0;
+          break;
+      }
+
+      final rule = RuleModel(
+        id: widget.existingRule?.id ?? '',
+        userId: _firebaseService.currentUserId!,
+        name: _nameController.text,
+        type: widget.ruleType,
+        conditions: conditions,
+        actions: actions,
+        priority: _priority,
+        isActive: _isActive,
+        createdAt: widget.existingRule?.createdAt ?? DateTime.now(),
+        targetAmount: targetAmount,
+        currentAmount: currentAmount,
+        goalName: goalName,
+        isPiggyBank: isPiggyBank,
+      );
+
+      try {
+        if (widget.existingRule != null) {
+          await _firebaseService.updateRule(rule);
+        } else {
+          await _firebaseService.addRule(rule);
+        }
+
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Rule ${widget.existingRule != null ? "updated" : "created"} successfully',
+              ),
+              backgroundColor: AppTheme.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error saving rule: $e'),
+              backgroundColor: AppTheme.red,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }
     }
-
-    final currentValue = double.tryParse(_amountController.text) ?? 0.0;
-    double currentPercentage = 0.0;
-
-    if (_amountType == 'percentage') {
-      currentPercentage = currentValue;
-    } else {
-      currentPercentage = (currentValue / _currentUser!.monthlyIncome!) * 100;
-    }
-
-    return _totalAllocationPercent + currentPercentage;
   }
 
   @override
   Widget build(BuildContext context) {
-    // Show income allocation UI for variable earners
-    if (_currentUser?.incomeType == 'variable' &&
-        widget.ruleType == 'allocation') {
-      return _buildIncomeAllocationScreen();
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: Text(
+          '${widget.existingRule != null ? "Edit" : "Add"} ${_getRuleTypeTitle()} Rule',
+        ),
+        backgroundColor: AppTheme.primaryBlue,
+        elevation: 0,
+        foregroundColor: Colors.white,
+      ),
+      body: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Rule Name
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Rule Name',
+                  hintText: 'e.g., Save 20% of income',
+                  prefixIcon: Icon(Icons.label),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter a rule name';
+                  }
+                  return null;
+                },
+              ),
+
+              const SizedBox(height: 24),
+
+              // Rule Type Specific Fields
+              _buildRuleTypeFields(),
+
+              const SizedBox(height: 24),
+
+              // Priority Slider
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Priority: $_priority',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Slider(
+                    value: _priority.toDouble(),
+                    min: 1,
+                    max: 5,
+                    divisions: 4,
+                    label: _priority.toString(),
+                    activeColor: AppTheme.primaryBlue,
+                    onChanged: (value) {
+                      setState(() => _priority = value.toInt());
+                    },
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // Active Switch
+              SwitchListTile(
+                title: const Text('Active'),
+                subtitle: const Text('Rule will be applied automatically'),
+                value: _isActive,
+                activeThumbColor: AppTheme.green,
+                onChanged: (value) {
+                  setState(() => _isActive = value);
+                },
+              ),
+
+              const SizedBox(height: 32),
+
+              // Save Button
+              ElevatedButton(
+                onPressed: _isLoading ? null : _saveRule,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.green,
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : Text(
+                        widget.existingRule != null
+                            ? 'Update Rule'
+                            : 'Save Rule',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRuleTypeFields() {
+    switch (widget.ruleType) {
+      case 'allocation':
+        // Check if user is a variable earner - show different UI
+        if (_currentUser?.incomeType == 'variable') {
+          return _buildVariableEarnerAllocationFields();
+        }
+        // Fixed earner allocation UI
+        return Column(
+          children: [
+            // Category Dropdown
+            DropdownButtonFormField<String>(
+              value: _selectedCategory,
+              decoration: InputDecoration(
+                labelText: 'Category',
+                prefixIcon: Icon(CategoryConstants.getIcon(_selectedCategory)),
+              ),
+              items: CategoryConstants.expenseCategories
+                  .map(
+                    (category) => DropdownMenuItem(
+                      value: category,
+                      child: Row(
+                        children: [
+                          Icon(
+                            CategoryConstants.getIcon(category),
+                            size: 20,
+                            color: CategoryConstants.getColor(category),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(category),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                setState(() => _selectedCategory = value!);
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // Amount Type Toggle
+            Row(
+              children: [
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Text('Amount (₦)'),
+                    selected: _amountType == 'amount',
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() {
+                          _amountType = 'amount';
+                        });
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ChoiceChip(
+                    label: const Text('Percentage (%)'),
+                    selected: _amountType == 'percentage',
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() {
+                          _amountType = 'percentage';
+                        });
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Amount/Percentage Input
+            TextFormField(
+              controller: _amountController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: _amountType == 'amount'
+                    ? 'Budget Amount'
+                    : 'Budget Percentage',
+                prefixText: _amountType == 'amount' ? '₦ ' : null,
+                suffixText: _amountType == 'percentage' ? '%' : null,
+                hintText: _amountType == 'amount' ? '80000' : '40',
+              ),
+              // ADD THIS onChanged callback
+              onChanged: (value) {
+                setState(() {}); // Trigger rebuild to update allocation summary
+              },
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter an amount';
+                }
+                final num = double.tryParse(value);
+                if (num == null || num <= 0) {
+                  return 'Please enter a valid amount';
+                }
+                if (_amountType == 'percentage' && num > 100) {
+                  return 'Percentage cannot exceed 100%';
+                }
+                return null;
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            // Show calculated value
+            if (_amountController.text.isNotEmpty && _currentUser != null)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _amountType == 'amount' ? 'As percentage:' : 'As amount:',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      _getCalculatedValue(),
+                      style: TextStyle(
+                        color: AppTheme.primaryBlue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 16),
+
+            // Allocation summary
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _getTotalAllocation() > 100
+                    ? AppTheme.red.withValues(alpha: 0.1)
+                    : AppTheme.green.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  _buildAllocationRow(
+                    'Current Allocation:',
+                    '${_totalAllocationPercent.toStringAsFixed(0)}%',
+                  ),
+                  _buildAllocationRow(
+                    'This Rule:',
+                    '${_getCurrentRulePercent().toStringAsFixed(0)}%',
+                  ),
+                  const Divider(),
+                  _buildAllocationRow(
+                    'Total:',
+                    '${_getTotalAllocation().toStringAsFixed(0)}%',
+                    bold: true,
+                    color: _getTotalAllocation() > 100
+                        ? AppTheme.red
+                        : AppTheme.green,
+                  ),
+                  _buildAllocationRow(
+                    'Remaining:',
+                    '${(100 - _getTotalAllocation()).toStringAsFixed(0)}%',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+
+      case 'savings':
+        return Column(
+          children: [
+            // Piggy Bank Toggle
+            SwitchListTile(
+              title: const Text('Piggy Bank'),
+              subtitle: const Text('General savings without specific goal'),
+              value: _isPiggyBank,
+              activeThumbColor: AppTheme.primaryBlue,
+              onChanged: (value) {
+                setState(() => _isPiggyBank = value);
+              },
+            ),
+            const SizedBox(height: 16),
+
+            if (!_isPiggyBank) ...[
+              TextFormField(
+                controller: _goalNameController,
+                decoration: const InputDecoration(
+                  labelText: 'Goal Name',
+                  hintText: 'e.g., New Laptop, Janet Asebi',
+                  prefixIcon: Icon(Icons.flag),
+                ),
+                validator: (value) {
+                  if (!_isPiggyBank && (value == null || value.isEmpty)) {
+                    return 'Please enter a goal name';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _targetAmountController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Target Amount',
+                  prefixText: '₦ ',
+                  hintText: 'How much to save',
+                  prefixIcon: Icon(Icons.savings),
+                ),
+                validator: (value) {
+                  if (!_isPiggyBank && (value == null || value.isEmpty)) {
+                    return 'Please enter target amount';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ],
+        );
+
+      case 'alert':
+        return FutureBuilder<List<RuleModel>>(
+          future: _firebaseService.getRules().first,
+          builder: (context, snapshot) {
+            final allocationRules =
+                snapshot.data?.where((r) => r.type == 'allocation').toList() ??
+                [];
+
+            final categoriesWithBudgets = allocationRules
+                .map((r) => r.conditions['category'] as String?)
+                .where((c) => c != null)
+                .cast<String>()
+                .toList();
+
+            if (categoriesWithBudgets.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppTheme.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.orange),
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.warning, size: 48, color: AppTheme.orange),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No Budgets Available',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Create auto-allocation rules first to set budgets for categories.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            // Ensure selected category is valid
+            if (!categoriesWithBudgets.contains(_selectedCategory)) {
+              _selectedCategory = categoriesWithBudgets.first;
+            }
+
+            return Column(
+              children: [
+                // Category dropdown (filtered)
+                DropdownButtonFormField<String>(
+                  value: _selectedCategory,
+                  decoration: InputDecoration(
+                    labelText: 'Category (with budget)',
+                    prefixIcon: Icon(
+                      CategoryConstants.getIcon(_selectedCategory),
+                    ),
+                  ),
+                  items: categoriesWithBudgets.map((category) {
+                    final rule = allocationRules.firstWhere(
+                      (r) => r.conditions['category'] == category,
+                    );
+                    return DropdownMenuItem(
+                      value: category,
+                      child: Row(
+                        children: [
+                          Icon(
+                            CategoryConstants.getIcon(category),
+                            size: 20,
+                            color: rule.isActive
+                                ? CategoryConstants.getColor(category)
+                                : Colors.grey,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            category,
+                            style: TextStyle(
+                              color: rule.isActive ? Colors.black : Colors.grey,
+                            ),
+                          ),
+                          if (!rule.isActive) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              '(inactive)',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setState(() => _selectedCategory = value!);
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // Info about budget calculation
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 20,
+                        color: AppTheme.primaryBlue,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _currentUser?.incomeType == 'variable' ||
+                                  _currentUser?.incomeType == 'hybrid'
+                              ? 'Budget will be set to threshold ÷ 4 for weekly tracking'
+                              : 'Budget will be set to this threshold amount',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.primaryBlue,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Threshold Type Toggle
+                Row(
+                  children: [
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Text('Amount (₦)'),
+                        selected: _thresholdType == 'amount',
+                        onSelected: (selected) {
+                          if (selected)
+                            setState(() => _thresholdType = 'amount');
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ChoiceChip(
+                        label: const Text('Percentage (%)'),
+                        selected: _thresholdType == 'percentage',
+                        onSelected: (selected) {
+                          if (selected)
+                            setState(() => _thresholdType = 'percentage');
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // Threshold Input
+                TextFormField(
+                  controller: _amountController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                      RegExp(r'^\d+\.?\d{0,2}'),
+                    ),
+                  ],
+                  decoration: InputDecoration(
+                    labelText: _thresholdType == 'amount'
+                        ? 'Alert Threshold (Monthly)'
+                        : 'Alert Threshold (%)',
+                    prefixText: _thresholdType == 'amount' ? '₦ ' : null,
+                    suffixText: _thresholdType == 'percentage' ? '%' : null,
+                    hintText: _thresholdType == 'amount'
+                        ? 'e.g., 50000'
+                        : 'e.g., 75',
+                    helperText:
+                        _currentUser?.incomeType == 'variable' ||
+                            _currentUser?.incomeType == 'hybrid'
+                        ? 'Weekly budget will be calculated automatically'
+                        : null,
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a threshold';
+                    }
+                    final amount = double.tryParse(value);
+                    if (amount == null || amount <= 0) {
+                      return 'Please enter a valid amount';
+                    }
+                    if (_thresholdType == 'percentage' && amount > 100) {
+                      return 'Percentage cannot exceed 100%';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            );
+          },
+        );
+
+      case 'boost':
+        return Center(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppTheme.orange.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.rocket_launch, size: 48, color: AppTheme.orange),
+                const SizedBox(height: 16),
+                const Text(
+                  'Boost rules coming soon!',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'AI-powered optimization will be available in the next update',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+        );
+
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  String _getRuleTypeTitle() {
+    switch (widget.ruleType) {
+      case 'allocation':
+        return 'Auto-Allocation';
+      case 'savings':
+        return 'Savings';
+      case 'alert':
+        return 'Alert';
+      case 'boost':
+        return 'Boost';
+      default:
+        return '';
+    }
+  }
+
+  String _amountType = 'amount';
+
+  String _thresholdType = 'amount'; // or 'percentage'
+
+  String _getCalculatedValue() {
+    if (_currentUser == null || _amountController.text.isEmpty) return '-';
+
+    final value = double.tryParse(_amountController.text) ?? 0;
+    final monthlyIncome = _currentUser!.monthlyIncome ?? 0;
+
+    if (monthlyIncome == 0) return '-';
+
+    if (_amountType == 'amount') {
+      final percent = (value / monthlyIncome * 100).toStringAsFixed(1);
+      return '$percent%';
+    } else {
+      final amount = (monthlyIncome * value / 100);
+      return CurrencyFormatter.format(amount);
+    }
+  }
+
+  double _getCurrentRulePercent() {
+    if (_currentUser == null || _amountController.text.isEmpty) return 0;
+
+    final value = double.tryParse(_amountController.text) ?? 0;
+    final monthlyIncome = _currentUser!.monthlyIncome ?? 0;
+
+    if (monthlyIncome == 0) return 0;
+
+    if (_amountType == 'amount') {
+      return value / monthlyIncome * 100;
+    } else {
+      return value;
+    }
+  }
+
+  double _getTotalAllocation() {
+    return _totalAllocationPercent + _getCurrentRulePercent();
+  }
+
+  // ============ Variable Earner Income Allocation Helpers ============
+
+  /// Calculate the available income for allocation (synchronous, uses loaded state)
+  double _getAvailableIncome() {
+    final projectedFromPercentage =
+        (_totalWeeklyIncome * _totalPercentageAllocated) / 100;
+    final totalAllocated = projectedFromPercentage + _totalFixedAllocated;
+    return _totalWeeklyIncome - totalAllocated;
+  }
+
+  /// Get the current rule's projected allocation amount
+  double _getCurrentRuleAllocationAmount() {
+    final value = double.tryParse(_amountController.text) ?? 0;
+    if (_incomeAllocationType == 'percentage') {
+      return (_totalWeeklyIncome * value) / 100;
+    } else {
+      return value;
+    }
+  }
+
+  /// Check if the current allocation is valid (returns error message or null)
+  String? _validateIncomeAllocation() {
+    final value = double.tryParse(_amountController.text) ?? 0;
+    if (value <= 0) return null; // Will be caught by basic validator
+
+    // If no income this week, allow any valid percentage/amount (rule will apply to future income)
+    if (_totalWeeklyIncome <= 0) {
+      if (_incomeAllocationType == 'percentage' && value > 100) {
+        return 'Percentage cannot exceed 100%';
+      }
+      // For fixed amounts with no income, just check it's positive (already done above)
+      return null;
     }
 
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        backgroundColor: AppTheme.primaryBlue,
-        title: Text(
-          widget.existingRule != null
-              ? 'Edit ${_getRuleTypeName()} Rule'
-              : 'Add ${_getRuleTypeName()} Rule',
-          style: const TextStyle(color: Colors.white),
-        ),
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildRuleNameField(),
-                    const SizedBox(height: 16),
-                    ..._buildRuleSpecificFields(),
-                    const SizedBox(height: 16),
-                    _buildPrioritySelector(),
-                    const SizedBox(height: 16),
-                    _buildActiveToggle(),
-                    const SizedBox(height: 24),
-                    _buildSaveButton(),
-                  ],
-                ),
-              ),
-            ),
-    );
+    // Has income this week - validate against available amount
+    final availableIncome = _getAvailableIncome();
+
+    if (_incomeAllocationType == 'percentage') {
+      // Check percentage doesn't exceed 100%
+      final newTotalPercentage = _totalPercentageAllocated + value;
+      if (newTotalPercentage > 100) {
+        return 'Total percentage would be ${newTotalPercentage.toStringAsFixed(1)}% (max 100%)';
+      }
+      // Check projected amount doesn't exceed available
+      final projectedAmount = (_totalWeeklyIncome * value) / 100;
+      if (projectedAmount > availableIncome + 0.01) {
+        return 'This ${value.toStringAsFixed(1)}% (${CurrencyFormatter.format(projectedAmount)}) exceeds available ${CurrencyFormatter.format(availableIncome)}';
+      }
+    } else {
+      // Fixed amount - check it doesn't exceed available
+      if (value > availableIncome + 0.01) {
+        return 'Amount exceeds available income (${CurrencyFormatter.format(availableIncome)})';
+      }
+    }
+    return null;
   }
 
-  Widget _buildIncomeAllocationScreen() {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        backgroundColor: AppTheme.primaryBlue,
-        title: const Text(
-          'Add Income Allocation Rule',
-          style: TextStyle(color: Colors.white),
-        ),
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildVariableEarnerIndicator(),
-                    const SizedBox(height: 16),
-                    _buildRuleNameField(),
-                    const SizedBox(height: 16),
-                    _buildIncomeAllocationFields(),
-                    const SizedBox(height: 16),
-                    _buildPrioritySelector(),
-                    const SizedBox(height: 16),
-                    _buildActiveToggle(),
-                    const SizedBox(height: 24),
-                    _buildSaveButton(),
-                  ],
-                ),
-              ),
-            ),
-    );
+  /// Check if save should be blocked for variable earner
+  bool _canSaveIncomeAllocation() {
+    if (_isLoadingIncomeData) return false;
+    if (_selectedIncomeSource == null) return false;
+    if (_amountController.text.isEmpty)
+      return true; // Let form validator handle this
+
+    // If no income this week, allow rule creation (it will apply to future income)
+    if (_totalWeeklyIncome <= 0) {
+      final value = double.tryParse(_amountController.text) ?? 0;
+      if (_incomeAllocationType == 'percentage') {
+        return value > 0 && value <= 100;
+      }
+      return value > 0;
+    }
+
+    return _validateIncomeAllocation() == null;
   }
 
-  Widget _buildVariableEarnerIndicator() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.primaryBlue.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.primaryBlue),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Variable Earner Mode',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: AppTheme.primaryBlue,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'This rule will auto-allocate from each income you receive to create weekly budgets',
-            style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-          ),
-        ],
-      ),
-    );
-  }
+  /// Build the allocation fields for variable earners
+  Widget _buildVariableEarnerAllocationFields() {
+    final availableIncome = _getAvailableIncome();
+    final validationError = _validateIncomeAllocation();
+    final hasError = validationError != null;
 
-  Widget _buildRuleNameField() {
-    return TextFormField(
-      controller: _nameController,
-      decoration: InputDecoration(
-        labelText: 'Rule Name',
-        hintText: 'e.g., ${_getNameHint()}',
-        border: const OutlineInputBorder(),
-        filled: true,
-        fillColor: Colors.white,
-      ),
-      validator: (value) =>
-          value?.isEmpty ?? true ? 'Please enter a rule name' : null,
-    );
-  }
-
-  Widget _buildIncomeAllocationFields() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Income Source Selector
-        // Income Source Selector
+        // Variable Earner Mode indicator
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppTheme.primaryBlue),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.trending_up, color: AppTheme.primaryBlue),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Variable Earner Mode',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.primaryBlue,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Allocate from your weekly income to budget categories',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Income Source Dropdown
         if (_userIncomeSources.isEmpty)
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.1),
+              color: Colors.orange.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              border: Border.all(color: Colors.orange),
             ),
             child: Row(
               children: [
-                const Icon(Icons.warning_amber_rounded, color: Colors.orange),
-                const SizedBox(width: 12),
-                const Expanded(
+                const Icon(Icons.warning_amber, color: Colors.orange),
+                const SizedBox(width: 8),
+                Expanded(
                   child: Text(
-                    'No income sources found. Please add an income transaction with a source first.',
-                    style: TextStyle(fontSize: 12),
+                    'No income sources found. Add an income transaction first.',
+                    style: TextStyle(fontSize: 12, color: Colors.orange[800]),
                   ),
                 ),
               ],
@@ -368,97 +1204,211 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
           )
         else
           DropdownButtonFormField<String>(
-            value: _incomeSource,
+            value: _selectedIncomeSource,
             decoration: const InputDecoration(
-              labelText: 'Apply to Income From',
-              border: OutlineInputBorder(),
-              filled: true,
-              fillColor: Colors.white,
+              labelText: 'Income Source',
+              prefixIcon: Icon(Icons.account_balance_wallet),
             ),
             items: _userIncomeSources.map((source) {
               return DropdownMenuItem(value: source, child: Text(source));
             }).toList(),
-            onChanged: (value) => setState(() => _incomeSource = value!),
+            onChanged: (value) {
+              setState(() {
+                _selectedIncomeSource = value;
+                _amountController.clear();
+              });
+              if (value != null) {
+                _loadIncomeAllocationData(value);
+              }
+            },
             validator: (value) =>
                 value == null ? 'Please select an income source' : null,
           ),
         const SizedBox(height: 16),
+
+        // Loading indicator or Income summary
+        if (_isLoadingIncomeData)
+          Container(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Loading income data...',
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          )
+        else if (_selectedIncomeSource != null && _totalWeeklyIncome <= 0)
+          // No income this week from this source - show info message, allow rule creation
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      color: Colors.blue,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'No income this week',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'No income from "$_selectedIncomeSource" recorded this week. '
+                  'You can still create this rule - it will apply when you receive income.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                ),
+              ],
+            ),
+          )
+        else if (_selectedIncomeSource != null)
+          // Has income this week - show allocation summary
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: availableIncome <= 0
+                  ? AppTheme.red.withValues(alpha: 0.1)
+                  : AppTheme.green.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: availableIncome <= 0 ? AppTheme.red : AppTheme.green,
+              ),
+            ),
+            child: Column(
+              children: [
+                _buildAllocationRow(
+                  'Weekly Income:',
+                  CurrencyFormatter.format(_totalWeeklyIncome),
+                ),
+                if (_totalPercentageAllocated > 0 || _totalFixedAllocated > 0)
+                  _buildAllocationRow(
+                    'Already Allocated:',
+                    '${_totalPercentageAllocated.toStringAsFixed(0)}% + ${CurrencyFormatter.format(_totalFixedAllocated)}',
+                  ),
+                _buildAllocationRow(
+                  'Available:',
+                  CurrencyFormatter.format(availableIncome),
+                  bold: true,
+                  color: availableIncome <= 0 ? AppTheme.red : AppTheme.green,
+                ),
+                if (availableIncome <= 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'All income is allocated. Reduce existing allocations first.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.red,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         const SizedBox(height: 16),
 
-        // Allocation Type
+        // Allocation Type Toggle
         Row(
           children: [
             Expanded(
-              child: RadioListTile<String>(
-                title: const Text('Percentage'),
-                subtitle: const Text('% of income'),
-                value: 'percentage',
-                groupValue: _allocationType,
-                onChanged: (value) => setState(() {
-                  _allocationType = value!;
-                  _amountController.clear();
-                }),
+              child: ChoiceChip(
+                label: const Text('Percentage (%)'),
+                selected: _incomeAllocationType == 'percentage',
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() {
+                      _incomeAllocationType = 'percentage';
+                      _amountController.clear();
+                    });
+                  }
+                },
               ),
             ),
+            const SizedBox(width: 8),
             Expanded(
-              child: RadioListTile<String>(
-                title: const Text('Fixed'),
-                subtitle: const Text('₦ amount'),
-                value: 'fixed',
-                groupValue: _allocationType,
-                onChanged: (value) => setState(() {
-                  _allocationType = value!;
-                  _amountController.clear();
-                }),
+              child: ChoiceChip(
+                label: const Text('Fixed (₦)'),
+                selected: _incomeAllocationType == 'fixed',
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() {
+                      _incomeAllocationType = 'fixed';
+                      _amountController.clear();
+                    });
+                  }
+                },
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
 
-        // Allocation Value
+        // Allocation Amount Input
         TextFormField(
           controller: _amountController,
           keyboardType: TextInputType.number,
           inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
           ],
           decoration: InputDecoration(
-            labelText: _allocationType == 'percentage'
+            labelText: _incomeAllocationType == 'percentage'
                 ? 'Percentage to Allocate'
                 : 'Amount to Allocate',
-            hintText: _allocationType == 'percentage'
-                ? 'e.g., 30'
-                : 'e.g., 5000',
-            suffixText: _allocationType == 'percentage' ? '%' : '₦',
-            border: const OutlineInputBorder(),
-            filled: true,
-            fillColor: Colors.white,
+            prefixText: _incomeAllocationType == 'fixed' ? '₦ ' : null,
+            suffixText: _incomeAllocationType == 'percentage' ? '%' : null,
+            hintText: _incomeAllocationType == 'percentage' ? '30' : '5000',
+            errorText: hasError ? validationError : null,
+            errorMaxLines: 2,
           ),
+          onChanged: (value) {
+            setState(() {}); // Trigger rebuild to update validation
+          },
           validator: (value) {
-            if (value?.isEmpty ?? true) {
-              return 'Please enter an allocation value';
+            if (value == null || value.isEmpty) {
+              return 'Please enter an amount';
             }
-            final amount = double.tryParse(value!);
-            if (amount == null || amount <= 0) {
+            final num = double.tryParse(value);
+            if (num == null || num <= 0) {
               return 'Please enter a valid amount';
             }
-            if (_allocationType == 'percentage' && amount > 100) {
+            if (_incomeAllocationType == 'percentage' && num > 100) {
               return 'Percentage cannot exceed 100%';
             }
-            return null;
+            // Check against available income
+            return _validateIncomeAllocation();
           },
         ),
         const SizedBox(height: 16),
 
-        // Target Category
+        // Target Category Dropdown
         DropdownButtonFormField<String>(
-          initialValue: _targetCategory,
-          decoration: const InputDecoration(
-            labelText: 'Allocate to Budget Category',
-            border: OutlineInputBorder(),
-            filled: true,
-            fillColor: Colors.white,
+          value: _targetCategory,
+          decoration: InputDecoration(
+            labelText: 'Allocate to Category',
+            prefixIcon: Icon(CategoryConstants.getIcon(_targetCategory)),
           ),
           items: CategoryConstants.expenseCategories.map((category) {
             return DropdownMenuItem(
@@ -470,47 +1420,35 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
                     size: 20,
                     color: CategoryConstants.getColor(category),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 12),
                   Text(category),
                 ],
               ),
             );
           }).toList(),
-          onChanged: (value) => setState(() => _targetCategory = value!),
+          onChanged: (value) {
+            setState(() => _targetCategory = value!);
+          },
         ),
-
         const SizedBox(height: 16),
 
-        // Info Card
+        // Info box
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.blue.withOpacity(0.1),
+            color: Colors.blue.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.blue.withOpacity(0.3)),
           ),
           child: Row(
             children: [
-              const Icon(Icons.info_outline, color: Colors.blue),
-              const SizedBox(width: 12),
+              const Icon(Icons.info_outline, color: Colors.blue, size: 20),
+              const SizedBox(width: 8),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'How it works:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _allocationType == 'percentage'
-                          ? 'Every time you receive ${_incomeSource ?? "income"}, '
-                                '${_amountController.text.isEmpty ? "X" : _amountController.text}% will be allocated to $_targetCategory weekly budget.'
-                          : 'Every time you receive ${_incomeSource ?? "income"}, '
-                                '₦${_amountController.text.isEmpty ? "X" : _amountController.text} will be allocated to $_targetCategory weekly budget.',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ],
+                child: Text(
+                  _incomeAllocationType == 'percentage'
+                      ? 'Every time you receive ${_selectedIncomeSource ?? "income"}, ${_amountController.text.isEmpty ? "X" : _amountController.text}% will go to $_targetCategory budget.'
+                      : 'Every time you receive ${_selectedIncomeSource ?? "income"}, ₦${_amountController.text.isEmpty ? "X" : _amountController.text} will go to $_targetCategory budget.',
+                  style: const TextStyle(fontSize: 12),
                 ),
               ),
             ],
@@ -520,411 +1458,34 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
     );
   }
 
-  List<Widget> _buildRuleSpecificFields() {
-    switch (widget.ruleType) {
-      case 'alert':
-        return _buildAlertFields();
-      case 'savings':
-        return _buildSavingsFields();
-      case 'allocation':
-        return _buildAllocationFields();
-      default:
-        return [];
-    }
-  }
-
-  List<Widget> _buildAlertFields() {
-    return [
-      DropdownButtonFormField<String>(
-        initialValue: _selectedCategory,
-        decoration: const InputDecoration(
-          labelText: 'Budget Category',
-          border: OutlineInputBorder(),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-        items: CategoryConstants.expenseCategories.map((category) {
-          return DropdownMenuItem(value: category, child: Text(category));
-        }).toList(),
-        onChanged: (value) => setState(() => _selectedCategory = value!),
-      ),
-      const SizedBox(height: 16),
-      Row(
+  Widget _buildAllocationRow(
+    String label,
+    String value, {
+    bool bold = false,
+    Color? color,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(
-            child: RadioListTile<String>(
-              title: const Text('Percentage'),
-              value: 'percentage',
-              groupValue: _thresholdType,
-              onChanged: (value) => setState(() => _thresholdType = value!),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+              fontSize: bold ? 16 : 14,
             ),
           ),
-          Expanded(
-            child: RadioListTile<String>(
-              title: const Text('Amount'),
-              value: 'amount',
-              groupValue: _thresholdType,
-              onChanged: (value) => setState(() => _thresholdType = value!),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+              fontSize: bold ? 16 : 14,
+              color: color,
             ),
           ),
         ],
       ),
-      const SizedBox(height: 16),
-      TextFormField(
-        controller: _amountController,
-        keyboardType: TextInputType.number,
-        decoration: InputDecoration(
-          labelText: _thresholdType == 'percentage'
-              ? 'Alert at % of Budget'
-              : 'Alert at Amount Spent',
-          suffixText: _thresholdType == 'percentage' ? '%' : '₦',
-          border: const OutlineInputBorder(),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-        validator: (value) {
-          if (value?.isEmpty ?? true) return 'Please enter a threshold value';
-          return null;
-        },
-      ),
-    ];
-  }
-
-  List<Widget> _buildSavingsFields() {
-    return [
-      SwitchListTile(
-        title: const Text('Piggybank Savings'),
-        subtitle: const Text('Save without a specific goal'),
-        value: _isPiggyBank,
-        onChanged: (value) => setState(() => _isPiggyBank = value),
-        activeThumbColor: AppTheme.green,
-      ),
-      if (!_isPiggyBank) ...[
-        const SizedBox(height: 16),
-        TextFormField(
-          controller: _goalNameController,
-          decoration: const InputDecoration(
-            labelText: 'Goal Name',
-            hintText: 'e.g., New Phone',
-            border: OutlineInputBorder(),
-            filled: true,
-            fillColor: Colors.white,
-          ),
-          validator: (value) => !_isPiggyBank && (value?.isEmpty ?? true)
-              ? 'Please enter a goal name'
-              : null,
-        ),
-        const SizedBox(height: 16),
-        TextFormField(
-          controller: _targetAmountController,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: 'Target Amount',
-            prefixText: '₦ ',
-            border: OutlineInputBorder(),
-            filled: true,
-            fillColor: Colors.white,
-          ),
-          validator: (value) {
-            if (!_isPiggyBank && (value?.isEmpty ?? true)) {
-              return 'Please enter a target amount';
-            }
-            return null;
-          },
-        ),
-      ],
-    ];
-  }
-
-  List<Widget> _buildAllocationFields() {
-    // For fixed earners - existing allocation logic
-    return [
-      DropdownButtonFormField<String>(
-        initialValue: _selectedCategory,
-        decoration: const InputDecoration(
-          labelText: 'Budget Category',
-          border: OutlineInputBorder(),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-        items: CategoryConstants.expenseCategories.map((category) {
-          return DropdownMenuItem(value: category, child: Text(category));
-        }).toList(),
-        onChanged: (value) => setState(() => _selectedCategory = value!),
-      ),
-      const SizedBox(height: 16),
-      TextFormField(
-        controller: _amountController,
-        keyboardType: TextInputType.number,
-        decoration: const InputDecoration(
-          labelText: 'Allocation Amount',
-          border: OutlineInputBorder(),
-          filled: true,
-          fillColor: Colors.white,
-        ),
-        validator: (value) {
-          if (value?.isEmpty ?? true) return 'Please enter an amount';
-          return null;
-        },
-      ),
-    ];
-  }
-
-  Widget _buildPrioritySelector() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Rule Priority',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey[300]!),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.flag, color: AppTheme.primaryBlue),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Slider(
-                  value: _priority.toDouble(),
-                  min: 1,
-                  max: 5,
-                  divisions: 4,
-                  label: _getPriorityLabel(_priority),
-                  activeColor: _getPriorityColor(_priority),
-                  onChanged: (value) =>
-                      setState(() => _priority = value.round()),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: _getPriorityColor(_priority).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _getPriorityColor(_priority)),
-                ),
-                child: Text(
-                  _getPriorityLabel(_priority),
-                  style: TextStyle(
-                    color: _getPriorityColor(_priority),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
-  }
-
-  Widget _buildActiveToggle() {
-    return SwitchListTile(
-      title: const Text('Rule Active'),
-      subtitle: const Text('Enable or disable this rule'),
-      value: _isActive,
-      onChanged: (value) => setState(() => _isActive = value),
-      activeThumbColor: AppTheme.green,
-    );
-  }
-
-  Widget _buildSaveButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: _saveRule,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppTheme.primaryBlue,
-          padding: const EdgeInsets.all(16),
-        ),
-        child: Text(
-          widget.existingRule != null ? 'Update Rule' : 'Create Rule',
-          style: const TextStyle(color: Colors.white, fontSize: 16),
-        ),
-      ),
-    );
-  }
-
-  String _getPriorityLabel(int priority) {
-    switch (priority) {
-      case 1:
-        return 'Lowest';
-      case 2:
-        return 'Low';
-      case 3:
-        return 'Medium';
-      case 4:
-        return 'High';
-      case 5:
-        return 'Highest';
-      default:
-        return 'Medium';
-    }
-  }
-
-  Color _getPriorityColor(int priority) {
-    switch (priority) {
-      case 1:
-        return Colors.grey;
-      case 2:
-        return Colors.blue;
-      case 3:
-        return Colors.orange;
-      case 4:
-        return Colors.deepOrange;
-      case 5:
-        return Colors.red;
-      default:
-        return Colors.orange;
-    }
-  }
-
-  String _getRuleTypeName() {
-    switch (widget.ruleType) {
-      case 'income_allocation':
-        return 'Income Allocation';
-      case 'alert':
-        return 'Alert';
-      case 'savings':
-        return 'Savings';
-      case 'allocation':
-        return 'Budget Allocation';
-      default:
-        return 'Rule';
-    }
-  }
-
-  String _getNameHint() {
-    switch (widget.ruleType) {
-      case 'income_allocation':
-        return '30% of Gig Income to Food';
-      case 'alert':
-        return 'Food Budget 80% Alert';
-      case 'savings':
-        return 'Emergency Fund';
-      case 'allocation':
-        return 'Monthly Food Budget';
-      default:
-        return 'My Rule';
-    }
-  }
-
-  Future<void> _saveRule() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    // Validate for fixed income users
-    if (widget.ruleType == 'allocation' &&
-        _currentUser?.incomeType == 'fixed') {
-      if (_currentUser?.monthlyIncome == null ||
-          _currentUser!.monthlyIncome! <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Monthly income can\'t be 0. Please update your profile',
-            ),
-            backgroundColor: AppTheme.red,
-          ),
-        );
-        return;
-      }
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      Map<String, dynamic> conditions = {};
-      Map<String, dynamic> actions = {};
-
-      // For variable earners creating allocation rule
-      if (_currentUser?.incomeType == 'variable' &&
-          widget.ruleType == 'allocation') {
-        await _firebaseService.createIncomeAllocationRule(
-          ruleName: _nameController.text.trim(),
-          incomeSource: _incomeSource!,
-          allocationType: _allocationType,
-          allocationValue: double.parse(_amountController.text),
-          targetCategory: _targetCategory,
-          priority: _priority,
-        );
-      } else {
-        // Handle other rule types
-        switch (widget.ruleType) {
-          case 'alert':
-            conditions = {
-              'category': _selectedCategory,
-              'thresholdType': _thresholdType,
-              'thresholdValue': double.parse(_amountController.text),
-            };
-            actions = {'notificationType': 'push', 'frequency': 'daily'};
-            break;
-          case 'savings':
-            // Existing savings logic
-            break;
-          case 'allocation':
-            // Fixed earner allocation logic
-            break;
-        }
-
-        final rule = RuleModel(
-          id: widget.existingRule?.id ?? '',
-          userId: _firebaseService.currentUserId!,
-          name: _nameController.text.trim(),
-          type: widget.ruleType,
-          conditions: conditions,
-          actions: actions,
-          priority: _priority,
-          isActive: _isActive,
-          createdAt: widget.existingRule?.createdAt ?? DateTime.now(),
-        );
-
-        if (widget.existingRule != null) {
-          await _firebaseService.updateRule(rule);
-        } else {
-          await _firebaseService.addRule(rule);
-        }
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              widget.existingRule != null
-                  ? 'Rule updated successfully'
-                  : 'Rule created successfully',
-            ),
-            backgroundColor: AppTheme.green,
-          ),
-        );
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.red),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _amountController.dispose();
-    _goalNameController.dispose();
-    _targetAmountController.dispose();
-    super.dispose();
   }
 }

@@ -18,8 +18,8 @@ class CategoryConstants {
 
   // Income categories
   static const List<String> incomeCategories = [
-    'Salary',
     'Freelance',
+    'Salary',
     'Gig Work',
     'Investment',
     'Gift',

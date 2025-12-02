@@ -538,4 +538,148 @@ class IncomeAllocationService {
       'weekStart': weekStart.toIso8601String(),
     };
   }
+
+  /// Get total income for a specific source for the current week
+  Future<double> getTotalWeeklyIncome(String source) async {
+    final weekStart = _getWeekStart(DateTime.now());
+
+    final transactionsSnapshot = await _firestore
+        .collection('transactions')
+        .doc(userId)
+        .collection('userTransactions')
+        .where('type', isEqualTo: 'income')
+        .get();
+
+    double totalIncome = 0;
+    for (var doc in transactionsSnapshot.docs) {
+      final transaction = TransactionModel.fromMap(doc.data());
+
+      // Filter in Dart
+      if (transaction.source == source &&
+          transaction.date.isAfter(
+            weekStart.subtract(const Duration(seconds: 1)),
+          )) {
+        totalIncome += transaction.amount;
+      }
+    }
+    return totalIncome;
+  }
+
+  /// Get available income for a specific source
+  /// Calculates projected usage based on rule definitions
+  Future<double> getAvailableIncomeForSource(
+    String source, {
+    String? excludeRuleId,
+  }) async {
+    final totalIncome = await getTotalWeeklyIncome(source);
+
+    // Get all active rules for this source
+    // Get all active rules
+    final rulesSnapshot = await _firestore
+        .collection('rules')
+        .doc(userId)
+        .collection('userRules')
+        .where('type', isEqualTo: 'income_allocation')
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    double usedAmount = 0;
+
+    for (var doc in rulesSnapshot.docs) {
+      final rule = RuleModel.fromMap(doc.data());
+
+      // Filter by source in Dart
+      if (rule.incomeSource != source) {
+        continue;
+      }
+
+      // Exclude rule if specified (for edit scenario)
+      if (excludeRuleId != null && rule.id == excludeRuleId) {
+        continue;
+      }
+
+      if (rule.allocationType == 'fixed') {
+        // For fixed rules, use the defined amount
+        usedAmount += rule.allocationValue ?? 0;
+      } else if (rule.allocationType == 'percentage') {
+        // For percentage rules, calculate projected amount based on total income
+        // This ensures we don't over-allocate even with mixed types
+        if (rule.allocationValue != null) {
+          usedAmount += (totalIncome * rule.allocationValue!) / 100;
+        }
+      }
+    }
+
+    return totalIncome - usedAmount;
+  }
+
+  /// Get total percentage allocated for a specific source
+  Future<double> getTotalPercentageAllocated(
+    String source, {
+    String? excludeRuleId,
+  }) async {
+    final rulesSnapshot = await _firestore
+        .collection('rules')
+        .doc(userId)
+        .collection('userRules')
+        .where('type', isEqualTo: 'income_allocation')
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    double totalPercentage = 0;
+    for (var doc in rulesSnapshot.docs) {
+      final rule = RuleModel.fromMap(doc.data());
+
+      // Filter in Dart
+      if (rule.incomeSource != source || rule.allocationType != 'percentage') {
+        continue;
+      }
+
+      // Exclude rule if specified (for edit scenario)
+      if (excludeRuleId != null && rule.id == excludeRuleId) {
+        continue;
+      }
+
+      if (rule.allocationValue != null) {
+        totalPercentage += rule.allocationValue!;
+      }
+    }
+
+    return totalPercentage;
+  }
+
+  /// Get total fixed amount allocated for a specific source
+  Future<double> getTotalFixedAllocated(
+    String source, {
+    String? excludeRuleId,
+  }) async {
+    final rulesSnapshot = await _firestore
+        .collection('rules')
+        .doc(userId)
+        .collection('userRules')
+        .where('type', isEqualTo: 'income_allocation')
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    double totalFixed = 0;
+    for (var doc in rulesSnapshot.docs) {
+      final rule = RuleModel.fromMap(doc.data());
+
+      // Filter in Dart
+      if (rule.incomeSource != source || rule.allocationType != 'fixed') {
+        continue;
+      }
+
+      // Exclude rule if specified (for edit scenario)
+      if (excludeRuleId != null && rule.id == excludeRuleId) {
+        continue;
+      }
+
+      if (rule.allocationValue != null) {
+        totalFixed += rule.allocationValue!;
+      }
+    }
+
+    return totalFixed;
+  }
 }
