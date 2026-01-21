@@ -25,7 +25,9 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
     super.dispose();
   }
 
-  List<TransactionModel> _filterTransactions(List<TransactionModel> transactions) {
+  List<TransactionModel> _filterTransactions(
+    List<TransactionModel> transactions,
+  ) {
     var filtered = transactions;
 
     if (_filterType != 'all') {
@@ -59,9 +61,8 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => AddTransactionScreen(
-                    onTransactionAdded: () {},
-                  ),
+                  builder: (_) =>
+                      AddTransactionScreen(onTransactionAdded: () {}),
                 ),
               );
             },
@@ -89,12 +90,12 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                     prefixIcon: const Icon(Icons.search, color: Colors.grey),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
-                      icon: const Icon(Icons.clear, color: Colors.grey),
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                      },
-                    )
+                            icon: const Icon(Icons.clear, color: Colors.grey),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                          )
                         : null,
                     filled: true,
                     fillColor: Colors.white,
@@ -125,9 +126,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
               stream: _firebaseService.getTransactions(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
+                  return const Center(child: CircularProgressIndicator());
                 }
 
                 if (snapshot.hasError) {
@@ -135,7 +134,11 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.error_outline, size: 64, color: Colors.red[300]),
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.red[300],
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           'Error loading transactions',
@@ -152,7 +155,11 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.receipt_long, size: 64, color: Colors.grey[400]),
+                        Icon(
+                          Icons.receipt_long,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           'No transactions yet',
@@ -174,14 +181,20 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                   );
                 }
 
-                final filteredTransactions = _filterTransactions(snapshot.data!);
+                final filteredTransactions = _filterTransactions(
+                  snapshot.data!,
+                );
 
                 if (filteredTransactions.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+                        Icon(
+                          Icons.search_off,
+                          size: 64,
+                          color: Colors.grey[400],
+                        ),
                         const SizedBox(height: 16),
                         Text(
                           'No matching transactions',
@@ -198,7 +211,9 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                 // Group transactions by date
                 final groupedTransactions = <String, List<TransactionModel>>{};
                 for (var transaction in filteredTransactions) {
-                  final dateKey = DateFormat('yyyy-MM-dd').format(transaction.date);
+                  final dateKey = DateFormat(
+                    'yyyy-MM-dd',
+                  ).format(transaction.date);
                   if (!groupedTransactions.containsKey(dateKey)) {
                     groupedTransactions[dateKey] = [];
                   }
@@ -227,8 +242,9 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                             ),
                           ),
                         ),
-                        ...transactions.map((transaction) =>
-                            _buildTransactionCard(transaction)),
+                        ...transactions.map(
+                          (transaction) => _buildTransactionCard(transaction),
+                        ),
                         const SizedBox(height: 8),
                       ],
                     );
@@ -273,7 +289,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
           color: AppTheme.red,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: const Icon(Icons.delete, color: Colors.white),
       ),
@@ -282,7 +298,9 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Delete Transaction'),
-            content: const Text('Are you sure you want to delete this transaction?'),
+            content: const Text(
+              'Are you sure you want to delete this transaction?',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
@@ -311,14 +329,12 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.1),
-              spreadRadius: 1,
-              blurRadius: 3,
-              offset: const Offset(0, 1),
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -355,17 +371,11 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                       const SizedBox(height: 4),
                       Text(
                         transaction.category,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                       Text(
                         '${transaction.date.day}/${transaction.date.month}/${transaction.date.year}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey[500],
-                        ),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                       ),
                     ],
                   ),
@@ -386,10 +396,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                     if (transaction.source != null)
                       Text(
                         transaction.source!,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey[500],
-                        ),
+                        style: TextStyle(fontSize: 10, color: Colors.grey[500]),
                       ),
                   ],
                 ),
@@ -480,10 +487,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-        ),
+        Text(label, style: TextStyle(fontSize: 10, color: Colors.grey[600])),
         const SizedBox(height: 2),
         Text(
           CurrencyFormatter.format(amount),

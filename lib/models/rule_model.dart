@@ -16,6 +16,10 @@ class RuleModel {
   String? goalName;
   bool? isPiggyBank;
 
+  // Income allocation tracking fields
+  double? weeklyAllocatedAmount;
+  DateTime? weekStartDate;
+
   RuleModel({
     required this.id,
     required this.userId,
@@ -31,6 +35,8 @@ class RuleModel {
     this.currentAmount,
     this.goalName,
     this.isPiggyBank,
+    this.weeklyAllocatedAmount,
+    this.weekStartDate,
   });
 
   Map<String, dynamic> toMap() {
@@ -49,6 +55,8 @@ class RuleModel {
       'currentAmount': currentAmount,
       'goalName': goalName,
       'isPiggyBank': isPiggyBank,
+      'weeklyAllocatedAmount': weeklyAllocatedAmount,
+      'weekStartDate': weekStartDate?.toIso8601String(),
     };
   }
 
@@ -62,7 +70,9 @@ class RuleModel {
       actions: Map<String, dynamic>.from(map['actions'] ?? {}),
       priority: map['priority'] ?? 1,
       isActive: map['isActive'] ?? true,
-      createdAt: DateTime.parse(map['createdAt'] ?? DateTime.now().toIso8601String()),
+      createdAt: DateTime.parse(
+        map['createdAt'] ?? DateTime.now().toIso8601String(),
+      ),
       lastTriggered: map['lastTriggered'] != null
           ? DateTime.parse(map['lastTriggered'])
           : null,
@@ -70,6 +80,10 @@ class RuleModel {
       currentAmount: map['currentAmount']?.toDouble(),
       goalName: map['goalName'],
       isPiggyBank: map['isPiggyBank'],
+      weeklyAllocatedAmount: map['weeklyAllocatedAmount']?.toDouble(),
+      weekStartDate: map['weekStartDate'] != null
+          ? DateTime.parse(map['weekStartDate'])
+          : null,
     );
   }
 
@@ -88,6 +102,8 @@ class RuleModel {
     double? currentAmount,
     String? goalName,
     bool? isPiggyBank,
+    double? weeklyAllocatedAmount,
+    DateTime? weekStartDate,
   }) {
     return RuleModel(
       id: id ?? this.id,
@@ -104,6 +120,9 @@ class RuleModel {
       currentAmount: currentAmount ?? this.currentAmount,
       goalName: goalName ?? this.goalName,
       isPiggyBank: isPiggyBank ?? this.isPiggyBank,
+      weeklyAllocatedAmount:
+          weeklyAllocatedAmount ?? this.weeklyAllocatedAmount,
+      weekStartDate: weekStartDate ?? this.weekStartDate,
     );
   }
 
@@ -113,5 +132,60 @@ class RuleModel {
       return 0.0;
     }
     return (currentAmount! / targetAmount! * 100).clamp(0, 100);
+  }
+
+  // Getter for target category from actions map
+  String? get targetCategory => actions['targetCategory'] as String?;
+
+  /// Check if this rule applies to a given income source/category
+  bool appliesToIncomeSource(String incomeCategory) {
+    // Check if conditions specify income sources
+    final incomeSources = conditions['incomeSources'];
+    if (incomeSources == null) {
+      // No specific sources means applies to all
+      return true;
+    }
+    if (incomeSources is List) {
+      return incomeSources.contains(incomeCategory) ||
+          incomeSources.contains('all');
+    }
+    if (incomeSources is String) {
+      return incomeSources == incomeCategory || incomeSources == 'all';
+    }
+    return true;
+  }
+
+  /// Calculate allocation amount based on rule conditions
+  double calculateAllocation(double incomeAmount) {
+    final allocationType = actions['allocationType'] as String? ?? 'percentage';
+    final allocationValue =
+        (actions['allocationValue'] as num?)?.toDouble() ?? 0;
+
+    if (allocationType == 'percentage') {
+      return incomeAmount * (allocationValue / 100);
+    } else if (allocationType == 'fixed') {
+      return allocationValue.clamp(0, incomeAmount);
+    }
+    return 0;
+  }
+
+  /// Check if weekly allocation needs to be reset (new week started)
+  bool needsWeeklyReset() {
+    if (weekStartDate == null) return true;
+
+    final now = DateTime.now();
+    final currentWeekStart = now.subtract(Duration(days: now.weekday - 1));
+    final normalizedCurrentWeekStart = DateTime(
+      currentWeekStart.year,
+      currentWeekStart.month,
+      currentWeekStart.day,
+    );
+    final normalizedStoredWeekStart = DateTime(
+      weekStartDate!.year,
+      weekStartDate!.month,
+      weekStartDate!.day,
+    );
+
+    return normalizedCurrentWeekStart.isAfter(normalizedStoredWeekStart);
   }
 }

@@ -291,7 +291,8 @@ class _RulesScreenState extends State<RulesScreen>
       case 'allocation':
         final category = rule.conditions['category'] as String? ?? 'Unknown';
         final amountType = rule.conditions['amountType'] as String? ?? 'amount';
-        final amountValue = (rule.conditions['amountValue'] as num?)?.toDouble() ?? 0.0;
+        final amountValue =
+            (rule.conditions['amountValue'] as num?)?.toDouble() ?? 0.0;
 
         if (amountType == 'percentage') {
           return 'Allocate ${amountValue.toStringAsFixed(0)}% of income to $category budget';
@@ -309,8 +310,10 @@ class _RulesScreenState extends State<RulesScreen>
 
       case 'alert':
         final category = rule.conditions['category'] as String? ?? 'Unknown';
-        final thresholdType = rule.conditions['thresholdType'] as String? ?? 'amount';
-        final thresholdValue = (rule.conditions['thresholdValue'] as num?)?.toDouble() ?? 0.0;
+        final thresholdType =
+            rule.conditions['thresholdType'] as String? ?? 'amount';
+        final thresholdValue =
+            (rule.conditions['thresholdValue'] as num?)?.toDouble() ?? 0.0;
 
         if (thresholdType == 'percentage') {
           return 'Alert when $category spending exceeds ${thresholdValue.toStringAsFixed(0)}% of budget';
@@ -326,17 +329,23 @@ class _RulesScreenState extends State<RulesScreen>
     }
   }
 
-  Future<Map<String, dynamic>> _calculateAllocationSummary(List<RuleModel> allocationRules) async {
+  Future<Map<String, dynamic>> _calculateAllocationSummary(
+    List<RuleModel> allocationRules,
+  ) async {
     try {
-      final user = await _firebaseService.getUserProfile(_firebaseService.currentUserId!);
+      final user = await _firebaseService.getUserProfile(
+        _firebaseService.currentUserId!,
+      );
       final monthlyIncome = user?.monthlyIncome ?? 0.0;
 
       double totalAllocated = 0.0;
 
       if (monthlyIncome > 0) {
         for (var rule in allocationRules.where((r) => r.isActive)) {
-          final amountType = rule.conditions['amountType'] as String? ?? 'amount';
-          final amountValue = (rule.conditions['amountValue'] as num?)?.toDouble() ?? 0.0;
+          final amountType =
+              rule.conditions['amountType'] as String? ?? 'amount';
+          final amountValue =
+              (rule.conditions['amountValue'] as num?)?.toDouble() ?? 0.0;
 
           double percentageValue = 0.0;
           if (amountType == 'percentage') {
@@ -348,16 +357,10 @@ class _RulesScreenState extends State<RulesScreen>
         }
       }
 
-      return {
-        'totalAllocated': totalAllocated,
-        'monthlyIncome': monthlyIncome,
-      };
+      return {'totalAllocated': totalAllocated, 'monthlyIncome': monthlyIncome};
     } catch (e) {
       print('Error calculating allocation summary: $e');
-      return {
-        'totalAllocated': 0.0,
-        'monthlyIncome': 0.0,
-      };
+      return {'totalAllocated': 0.0, 'monthlyIncome': 0.0};
     }
   }
 
@@ -444,11 +447,11 @@ class _RulesScreenState extends State<RulesScreen>
             snapshot.data?.where((r) => r.type == 'allocation').toList() ?? [];
 
         // Calculate total allocation
-        double totalAllocated = 0;
-        for (var rule in allocationRules.where((r) => r.isActive)) {
-          totalAllocated += (rule.actions['allocateToSavings'] ?? 0.0)
-              .toDouble();
-        }
+        // double totalAllocated = 0;
+        // for (var rule in allocationRules.where((r) => r.isActive)) {
+        //   totalAllocated += (rule.actions['allocateToSavings'] ?? 0.0)
+        //       .toDouble();
+        // }
         //double remaining = 100 - totalAllocated;
 
         return SingleChildScrollView(
@@ -459,8 +462,10 @@ class _RulesScreenState extends State<RulesScreen>
               FutureBuilder<Map<String, dynamic>>(
                 future: _calculateAllocationSummary(allocationRules),
                 builder: (context, summarySnapshot) {
-                  final totalAllocated = summarySnapshot.data?['totalAllocated'] ?? 0.0;
-                  final monthlyIncome = summarySnapshot.data?['monthlyIncome'] ?? 0.0;
+                  final totalAllocated =
+                      summarySnapshot.data?['totalAllocated'] ?? 0.0;
+                  final monthlyIncome =
+                      summarySnapshot.data?['monthlyIncome'] ?? 0.0;
                   final remaining = 100 - totalAllocated;
 
                   return Container(

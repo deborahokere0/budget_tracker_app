@@ -37,8 +37,10 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
 
   // Platform detection
   bool get isWebPlatform => kIsWeb;
-  bool get isMobilePlatform => !kIsWeb && (Platform.isIOS || Platform.isAndroid);
-  bool get isDesktopPlatform => !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+  bool get isMobilePlatform =>
+      !kIsWeb && (Platform.isIOS || Platform.isAndroid);
+  bool get isDesktopPlatform =>
+      !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
 
   @override
   bool get wantKeepAlive => true; // Maintain state when scrolling
@@ -61,15 +63,13 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
       ),
     );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, -1),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Curves.easeOutCubic,
-      ),
-    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
 
     if (isWebPlatform) {
       _animationController.value = 1.0;
@@ -116,7 +116,10 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
     }
   }
 
-  Future<void> _dismissWithDuration(Duration duration, String durationLabel) async {
+  Future<void> _dismissWithDuration(
+    Duration duration,
+    String durationLabel,
+  ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final dismissedKey = 'alert_dismissed_${widget.alertRule.id}';
@@ -138,9 +141,7 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                 children: [
                   const Icon(Icons.check_circle, color: Colors.white),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: Text('Alert snoozed for $durationLabel'),
-                  ),
+                  Expanded(child: Text('Alert snoozed for $durationLabel')),
                 ],
               ),
               backgroundColor: Colors.green[700],
@@ -219,10 +220,7 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
           children: [
             const Text(
               'Snooze Alert',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
             ListTile(
@@ -327,11 +325,7 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                           color: color.withOpacity(0.12),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
-                          _getSeverityIcon(),
-                          color: color,
-                          size: 24,
-                        ),
+                        child: Icon(_getSeverityIcon(), color: color, size: 24),
                       ),
                       const SizedBox(width: 12),
 
@@ -389,7 +383,9 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                                 children: [
                                   TextSpan(text: '$category spending '),
                                   TextSpan(
-                                    text: CurrencyFormatter.format(widget.currentSpending),
+                                    text: CurrencyFormatter.format(
+                                      widget.currentSpending,
+                                    ),
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       color: color,
@@ -397,8 +393,12 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                                   ),
                                   const TextSpan(text: ' exceeded threshold '),
                                   TextSpan(
-                                    text: CurrencyFormatter.format(widget.thresholdAmount),
-                                    style: const TextStyle(fontWeight: FontWeight.w500),
+                                    text: CurrencyFormatter.format(
+                                      widget.thresholdAmount,
+                                    ),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -418,7 +418,8 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                                 AnimatedContainer(
                                   duration: const Duration(milliseconds: 500),
                                   height: 6,
-                                  width: MediaQuery.of(context).size.width *
+                                  width:
+                                      MediaQuery.of(context).size.width *
                                       (percentUsed / 100) *
                                       0.5,
                                   decoration: BoxDecoration(
@@ -470,7 +471,10 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                           if (value == 'snooze') {
                             _showSnoozeOptions(context);
                           } else if (value == 'dismiss') {
-                            _dismissWithDuration(const Duration(days: 1), '1 day');
+                            _dismissWithDuration(
+                              const Duration(days: 1),
+                              '1 day',
+                            );
                           } else if (value == 'details') {
                             _showAlertDetails(context, category);
                           }
@@ -588,7 +592,9 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                               Expanded(
                                 child: _buildCompactMetric(
                                   'Current',
-                                  CurrencyFormatter.format(widget.currentSpending),
+                                  CurrencyFormatter.format(
+                                    widget.currentSpending,
+                                  ),
                                   '${percentUsed.toStringAsFixed(0)}%',
                                   _getSeverityColor(),
                                 ),
@@ -610,7 +616,9 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                               Expanded(
                                 child: _buildCompactMetric(
                                   'Threshold',
-                                  CurrencyFormatter.format(widget.thresholdAmount),
+                                  CurrencyFormatter.format(
+                                    widget.thresholdAmount,
+                                  ),
                                   '88% point',
                                   AppTheme.orange,
                                 ),
@@ -632,7 +640,10 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
 
                     // Desktop: single row
                     return Container(
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.grey[50],
                         borderRadius: BorderRadius.circular(12),
@@ -640,13 +651,57 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                       child: IntrinsicHeight(
                         child: Row(
                           children: [
-                            Expanded(child: _buildInlineMetric('Current', CurrencyFormatter.format(widget.currentSpending), '${percentUsed.toStringAsFixed(0)}%', _getSeverityColor())),
-                            VerticalDivider(color: Colors.grey[300], thickness: 1, width: 1),
-                            Expanded(child: _buildInlineMetric('Budget', CurrencyFormatter.format(widget.budgetAmount), 'Total', AppTheme.primaryBlue)),
-                            VerticalDivider(color: Colors.grey[300], thickness: 1, width: 1),
-                            Expanded(child: _buildInlineMetric('Threshold', CurrencyFormatter.format(widget.thresholdAmount), '88%', AppTheme.orange)),
-                            VerticalDivider(color: Colors.grey[300], thickness: 1, width: 1),
-                            Expanded(child: _buildInlineMetric('Over By', CurrencyFormatter.format(exceeded), '${percentOver.toStringAsFixed(0)}%', AppTheme.red)),
+                            Expanded(
+                              child: _buildInlineMetric(
+                                'Current',
+                                CurrencyFormatter.format(
+                                  widget.currentSpending,
+                                ),
+                                '${percentUsed.toStringAsFixed(0)}%',
+                                _getSeverityColor(),
+                              ),
+                            ),
+                            VerticalDivider(
+                              color: Colors.grey[300],
+                              thickness: 1,
+                              width: 1,
+                            ),
+                            Expanded(
+                              child: _buildInlineMetric(
+                                'Budget',
+                                CurrencyFormatter.format(widget.budgetAmount),
+                                'Total',
+                                AppTheme.primaryBlue,
+                              ),
+                            ),
+                            VerticalDivider(
+                              color: Colors.grey[300],
+                              thickness: 1,
+                              width: 1,
+                            ),
+                            Expanded(
+                              child: _buildInlineMetric(
+                                'Threshold',
+                                CurrencyFormatter.format(
+                                  widget.thresholdAmount,
+                                ),
+                                '88%',
+                                AppTheme.orange,
+                              ),
+                            ),
+                            VerticalDivider(
+                              color: Colors.grey[300],
+                              thickness: 1,
+                              width: 1,
+                            ),
+                            Expanded(
+                              child: _buildInlineMetric(
+                                'Over By',
+                                CurrencyFormatter.format(exceeded),
+                                '${percentOver.toStringAsFixed(0)}%',
+                                AppTheme.red,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -675,7 +730,9 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                       LinearProgressIndicator(
                         value: (percentUsed / 100).clamp(0, 1),
                         backgroundColor: Colors.grey[300],
-                        valueColor: AlwaysStoppedAnimation<Color>(_getSeverityColor()),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          _getSeverityColor(),
+                        ),
                         minHeight: 8,
                       ),
                       const SizedBox(height: 12),
@@ -751,10 +808,7 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                 // Recommendations
                 const Text(
                   'Recommendations',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 16),
                 _buildSuggestion(
@@ -799,7 +853,10 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
                       child: ElevatedButton.icon(
                         onPressed: () {
                           Navigator.pop(context);
-                          _dismissWithDuration(const Duration(days: 1), '1 day');
+                          _dismissWithDuration(
+                            const Duration(days: 1),
+                            '1 day',
+                          );
                         },
                         icon: const Icon(Icons.check_circle),
                         label: const Text('Dismiss'),
@@ -833,90 +890,31 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
       children: [
         Text(
           'To balance your budget, consider reducing:',
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.grey[700],
-          ),
+          style: TextStyle(fontSize: 13, color: Colors.grey[700]),
         ),
         const SizedBox(height: 8),
-        ...categories.map((cat) => Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Row(
-            children: [
-              const Icon(Icons.remove_circle_outline, size: 16, color: AppTheme.red),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '$cat: ${CurrencyFormatter.format(reductionPerCategory)}',
-                  style: const TextStyle(fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-        )),
-      ],
-    );
-  }
-
-  Widget _buildDetailCard(
-      String label,
-      String value,
-      IconData icon,
-      Color color,
-      String subtitle,
-      ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        ...categories.map(
+          (cat) => Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
               children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[700],
-                    fontWeight: FontWeight.w500,
-                  ),
+                const Icon(
+                  Icons.remove_circle_outline,
+                  size: 16,
+                  color: AppTheme.red,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey[600],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '$cat: ${CurrencyFormatter.format(reductionPerCategory)}',
+                    style: const TextStyle(fontSize: 13),
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -932,11 +930,7 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
               color: AppTheme.primaryBlue.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              size: 18,
-              color: AppTheme.primaryBlue,
-            ),
+            child: Icon(icon, size: 18, color: AppTheme.primaryBlue),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -955,7 +949,12 @@ class _EnhancedAlertBannerState extends State<EnhancedAlertBanner>
   }
 }
 
-Widget _buildInlineMetric(String label, String value, String subtitle, Color color) {
+Widget _buildInlineMetric(
+  String label,
+  String value,
+  String subtitle,
+  Color color,
+) {
   return Column(
     mainAxisSize: MainAxisSize.min,
     children: [
@@ -978,18 +977,17 @@ Widget _buildInlineMetric(String label, String value, String subtitle, Color col
         textAlign: TextAlign.center,
       ),
       const SizedBox(height: 4),
-      Text(
-        subtitle,
-        style: TextStyle(
-          fontSize: 10,
-          color: Colors.grey[500],
-        ),
-      ),
+      Text(subtitle, style: TextStyle(fontSize: 10, color: Colors.grey[500])),
     ],
   );
 }
 
-Widget _buildCompactMetric(String label, String value, String subtitle, Color color) {
+Widget _buildCompactMetric(
+  String label,
+  String value,
+  String subtitle,
+  Color color,
+) {
   return Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
@@ -1022,13 +1020,7 @@ Widget _buildCompactMetric(String label, String value, String subtitle, Color co
           ),
         ),
         const SizedBox(height: 2),
-        Text(
-          subtitle,
-          style: TextStyle(
-            fontSize: 9,
-            color: Colors.grey[500],
-          ),
-        ),
+        Text(subtitle, style: TextStyle(fontSize: 9, color: Colors.grey[500])),
       ],
     ),
   );
@@ -1038,16 +1030,15 @@ Widget _buildCompactMetric(String label, String value, String subtitle, Color co
 class EnhancedAlertBannersContainer extends StatefulWidget {
   final String userId;
 
-  const EnhancedAlertBannersContainer({
-    super.key,
-    required this.userId,
-  });
+  const EnhancedAlertBannersContainer({super.key, required this.userId});
 
   @override
-  State<EnhancedAlertBannersContainer> createState() => _EnhancedAlertBannersContainerState();
+  State<EnhancedAlertBannersContainer> createState() =>
+      _EnhancedAlertBannersContainerState();
 }
 
-class _EnhancedAlertBannersContainerState extends State<EnhancedAlertBannersContainer> {
+class _EnhancedAlertBannersContainerState
+    extends State<EnhancedAlertBannersContainer> {
   List<Map<String, dynamic>>? _cachedAlerts;
   DateTime? _lastUpdate;
 
@@ -1070,7 +1061,8 @@ class _EnhancedAlertBannersContainerState extends State<EnhancedAlertBannersCont
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: alertService.getTriggeredAlertsStream(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting && _cachedAlerts == null) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            _cachedAlerts == null) {
           return const SizedBox.shrink();
         }
 
@@ -1094,8 +1086,14 @@ class _EnhancedAlertBannersContainerState extends State<EnhancedAlertBannersCont
         // Sort by exceeded amount (highest first)
         final sortedAlerts = List<Map<String, dynamic>>.from(triggeredAlerts)
           ..sort((a, b) {
-            final exceededA = DataValidator.safeParseDouble(a['exceeded'], fallback: 0.0);
-            final exceededB = DataValidator.safeParseDouble(b['exceeded'], fallback: 0.0);
+            final exceededA = DataValidator.safeParseDouble(
+              a['exceeded'],
+              fallback: 0.0,
+            );
+            final exceededB = DataValidator.safeParseDouble(
+              b['exceeded'],
+              fallback: 0.0,
+            );
             return exceededB.compareTo(exceededA);
           });
 
@@ -1109,16 +1107,16 @@ class _EnhancedAlertBannersContainerState extends State<EnhancedAlertBannersCont
               key: ValueKey('${rule.id}_${alertData['currentSpending']}'),
               alertRule: rule,
               currentSpending: DataValidator.safeParseDouble(
-                  alertData['currentSpending'],
-                  fallback: 0.0
+                alertData['currentSpending'],
+                fallback: 0.0,
               ),
               budgetAmount: DataValidator.safeParseDouble(
-                  alertData['budgetAmount'],
-                  fallback: 0.0
+                alertData['budgetAmount'],
+                fallback: 0.0,
               ),
               thresholdAmount: DataValidator.safeParseDouble(
-                  alertData['thresholdAmount'],
-                  fallback: 0.0
+                alertData['thresholdAmount'],
+                fallback: 0.0,
               ),
             );
           }).toList(),
@@ -1150,9 +1148,7 @@ class GlobalAlertOverlay extends StatelessWidget {
           right: 0,
           child: SafeArea(
             bottom: false,
-            child: EnhancedAlertBannersContainer(
-              userId: userId,
-            ),
+            child: EnhancedAlertBannersContainer(userId: userId),
           ),
         ),
       ],

@@ -53,10 +53,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddRuleScreen(
-          ruleType: 'allocation',
-          prefilledCategory: category,
-        ),
+        builder: (_) =>
+            AddRuleScreen(ruleType: 'allocation', prefilledCategory: category),
       ),
     );
 
@@ -71,10 +69,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddRuleScreen(
-          ruleType: 'allocation',
-          existingRule: allocationRule,
-        ),
+        builder: (_) =>
+            AddRuleScreen(ruleType: 'allocation', existingRule: allocationRule),
       ),
     );
 
@@ -86,10 +82,10 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
   }
 
   Future<void> _showAlertsBottomSheet(
-      String category,
-      BudgetModel? budget,
-      List<RuleModel> alertRules,
-      ) async {
+    String category,
+    BudgetModel? budget,
+    List<RuleModel> alertRules,
+  ) async {
     if (budget == null) return;
 
     await showModalBottomSheet(
@@ -210,11 +206,11 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                 else
                   ...alertRules.map((alert) {
                     final thresholdType =
-                    alert.conditions['thresholdType'] as String?;
+                        alert.conditions['thresholdType'] as String?;
                     final thresholdValue =
                         (alert.conditions['thresholdValue'] as num?)
                             ?.toDouble() ??
-                            0.0;
+                        0.0;
 
                     double thresholdAmount = thresholdValue;
                     if (thresholdType == 'percentage') {
@@ -222,7 +218,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                     }
 
                     bool isTriggered = budget.spent >= thresholdAmount;
-                    bool isPassed = alert.lastTriggered != null &&
+                    bool isPassed =
+                        alert.lastTriggered != null &&
                         budget.spent < thresholdAmount;
 
                     String status = 'Active';
@@ -289,8 +286,9 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: _getPriorityColor(alert.priority)
-                                      .withValues(alpha: 0.2),
+                                  color: _getPriorityColor(
+                                    alert.priority,
+                                  ).withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
@@ -322,7 +320,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                                       thresholdType == 'percentage'
                                           ? '${thresholdValue.toStringAsFixed(0)}% (${CurrencyFormatter.format(thresholdAmount)})'
                                           : CurrencyFormatter.format(
-                                          thresholdValue),
+                                              thresholdValue,
+                                            ),
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -434,10 +433,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddRuleScreen(
-          ruleType: 'alert',
-          prefilledCategory: category,
-        ),
+        builder: (_) =>
+            AddRuleScreen(ruleType: 'alert', prefilledCategory: category),
       ),
     );
 
@@ -452,10 +449,8 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => AddRuleScreen(
-          ruleType: 'alert',
-          existingRule: alertRule,
-        ),
+        builder: (_) =>
+            AddRuleScreen(ruleType: 'alert', existingRule: alertRule),
       ),
     );
 
@@ -497,14 +492,18 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
           .doc(_firebaseService.currentUserId)
           .collection('userTransactions')
           .where('type', isEqualTo: 'expense')
-          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
+          .where(
+            'date',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth),
+          )
           .get();
 
       final Map<String, double> categoryTotals = {};
       for (var doc in snapshot.docs) {
         final transaction = TransactionModel.fromMap(doc.data());
         categoryTotals[transaction.category] =
-            (categoryTotals[transaction.category] ?? 0) + transaction.actualExpenseAmount;
+            (categoryTotals[transaction.category] ?? 0) +
+            transaction.actualExpenseAmount;
       }
 
       if (mounted) {
@@ -590,10 +589,12 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
 
               final budgets = budgetSnapshot.data ?? [];
               final allRules = ruleSnapshot.data ?? [];
-              final allocationRules =
-              allRules.where((r) => r.type == 'allocation').toList();
-              final alertRules =
-              allRules.where((r) => r.type == 'alert').toList();
+              final allocationRules = allRules
+                  .where((r) => r.type == 'allocation')
+                  .toList();
+              final alertRules = allRules
+                  .where((r) => r.type == 'alert')
+                  .toList();
 
               final budgetsByCategory = <String, BudgetModel>{};
               for (var budget in budgets) {
@@ -612,8 +613,10 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
               for (var rule in alertRules) {
                 final category = rule.conditions['category'] as String?;
                 if (category != null) {
-                  alertsByCategory[category] =
-                  [...(alertsByCategory[category] ?? []), rule];
+                  alertsByCategory[category] = [
+                    ...(alertsByCategory[category] ?? []),
+                    rule,
+                  ];
                 }
               }
 
@@ -622,11 +625,15 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
 
               for (var category in CategoryConstants.expenseCategories) {
                 final budget = budgetsByCategory[category];
-                final hasAllocation = allocationsByCategory.containsKey(category);
+                final hasAllocation = allocationsByCategory.containsKey(
+                  category,
+                );
                 final hasSpending = budget != null && budget.spent > 0;
                 final hasBudgetAmount = budget != null && budget.amount > 0;
 
-                if (hasAllocation || hasBudgetAmount || hasSpending ||
+                if (hasAllocation ||
+                    hasBudgetAmount ||
+                    hasSpending ||
                     (budget != null && budget.amount > 0)) {
                   trackedCategories.add(category);
                 } else {
@@ -708,10 +715,7 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                       const SizedBox(height: 8),
                       Text(
                         'No budget set, auto-allocate your budget',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
-                        ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                       ),
                       const SizedBox(height: 16),
                       ...untrackedCategories.map((category) {
@@ -746,6 +750,9 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
     final hasAllocation = allocationRule != null;
     final isOverBudget = budgetAmount > 0 && spent > budgetAmount;
     final hasSpendingNoAllocation = spent > 0 && !hasAllocation;
+    final Color categoryColor = isDimmed
+        ? Colors.grey
+        : CategoryConstants.getColor(category);
 
     double progress = 0.0;
     if (budgetAmount > 0) {
@@ -754,26 +761,28 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDimmed ? Colors.grey[100] : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: hasSpendingNoAllocation
-              ? AppTheme.red
-              : isOverBudget
-              ? AppTheme.red
-              : Colors.grey[300]!,
-          width: hasSpendingNoAllocation || isOverBudget ? 2 : 1,
-        ),
-        boxShadow: isDimmed
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        gradient: isDimmed
             ? null
-            : [
+            : LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.white, categoryColor.withValues(alpha: 0.05)],
+              ),
+        border: Border.all(
+          color: hasSpendingNoAllocation || isOverBudget
+              ? AppTheme.red.withValues(alpha: 0.5)
+              : Colors.grey.withValues(alpha: 0.1),
+          width: hasSpendingNoAllocation || isOverBudget ? 1.5 : 1,
+        ),
+        boxShadow: [
           BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            spreadRadius: 1,
-            blurRadius: 3,
-            offset: const Offset(0, 1),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
@@ -783,21 +792,18 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: CategoryConstants.getColor(category)
-                      .withValues(alpha: isDimmed ? 0.3 : 0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  color: categoryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Icon(
                   CategoryConstants.getIcon(category),
-                  color: isDimmed
-                      ? Colors.grey
-                      : CategoryConstants.getColor(category),
-                  size: 24,
+                  color: categoryColor,
+                  size: 28,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
 
               Expanded(
                 child: Column(
@@ -841,10 +847,7 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                     else
                       Text(
                         'No budget set',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey[500],
-                        ),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                       ),
                   ],
                 ),
@@ -860,22 +863,34 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                     }
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: (alertRules.isNotEmpty ? AppTheme.red : AppTheme.primaryBlue)
-                          .withValues(alpha: 0.1),
+                      color:
+                          (alertRules.isNotEmpty
+                                  ? AppTheme.red
+                                  : AppTheme.primaryBlue)
+                              .withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: alertRules.isNotEmpty ? AppTheme.red : AppTheme.primaryBlue,
+                        color: alertRules.isNotEmpty
+                            ? AppTheme.red
+                            : AppTheme.primaryBlue,
                       ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          alertRules.isNotEmpty ? Icons.notifications_active : Icons.add_alert,
+                          alertRules.isNotEmpty
+                              ? Icons.notifications_active
+                              : Icons.add_alert,
                           size: 14,
-                          color: alertRules.isNotEmpty ? AppTheme.red : AppTheme.primaryBlue,
+                          color: alertRules.isNotEmpty
+                              ? AppTheme.red
+                              : AppTheme.primaryBlue,
                         ),
                         if (alertRules.isNotEmpty) ...[
                           const SizedBox(width: 4),
@@ -943,10 +958,7 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                         const SizedBox(height: 2),
                         Text(
                           'Set budget to track this',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: AppTheme.red,
-                          ),
+                          style: TextStyle(fontSize: 11, color: AppTheme.red),
                         ),
                       ],
                     ),
@@ -1004,7 +1016,9 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
                 ),
               ),
               Text(
-                CurrencyFormatter.format(_actualSpending[category] ?? budget?.spent ??  0.0),
+                CurrencyFormatter.format(
+                  _actualSpending[category] ?? budget?.spent ?? 0.0,
+                ),
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -1020,18 +1034,21 @@ class _BudgetTrackerScreenState extends State<BudgetTrackerScreen> {
 
           const SizedBox(height: 12),
 
-          LinearProgressIndicator(
-            value: progress,
-            backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              isDimmed
-                  ? Colors.grey
-                  : isOverBudget
-                  ? AppTheme.red
-                  : AppTheme.primaryBlue,
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: progress),
+            duration: const Duration(milliseconds: 1000),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, _) => ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: value,
+                backgroundColor: Colors.grey.withValues(alpha: 0.1),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  isOverBudget ? AppTheme.red : categoryColor,
+                ),
+                minHeight: 10,
+              ),
             ),
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(4),
           ),
 
           const SizedBox(height: 8),

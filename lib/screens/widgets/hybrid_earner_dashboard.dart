@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
+import '../../models/budget_model.dart';
 import '../../services/firebase_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/currency_formatter.dart';
+import '../../utils/financial_calculator.dart';
 import '../transactions/add_transaction_screen.dart';
 // import '../widgets/enhanced_alert_banner.dart';
 import 'budget_tracker_screen.dart';
@@ -31,17 +33,50 @@ class HybridEarnerDashboard extends StatelessWidget {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final stats = snapshot.data ?? {
-              'totalBalance': 0.0,
-              'salaryIncome': 0.0,
-              'gigIncome': 0.0,
-              'totalSavings': 0.0,
-            };
+            final stats =
+                snapshot.data ??
+                {
+                  'totalBalance': 0.0,
+                  'salaryIncome': 0.0,
+                  'gigIncome': 0.0,
+                  'totalSavings': 0.0,
+                  'weeklyIncome': 0.0,
+                  'weeklyExpenses': 0.0,
+                };
 
             final totalBalance = stats['totalBalance'] ?? 0.0;
             final salaryIncome = stats['salaryIncome'] ?? 0.0;
             final gigIncome = stats['gigIncome'] ?? 0.0;
             final totalSavings = stats['totalSavings'] ?? 0.0;
+            final weeklyExpenses = stats['weeklyExpenses'] ?? 0.0;
+            final weeklyIncome = stats['weeklyIncome'] ?? 0.0;
+
+            // --- CALCULATIONS (Using Shared Utility) ---
+
+            // Fixed Side: Safe-to-Spend (Monthly View)
+            // Using Salary portion for stability calculation
+            final monthlySafeToSpend = FinancialCalculator.calculateSafeToSpend(
+              salaryIncome,
+            );
+            final daysUntilPayday =
+                FinancialCalculator.calculateDaysUntilPayday();
+
+            // Variable Side: Runway (Weekly View)
+            // Using Total Balance vs Weekly Burn
+            final runwayDays = FinancialCalculator.calculateRunwayDays(
+              totalBalance,
+              weeklyExpenses,
+            );
+            final runwayStatus = FinancialCalculator.getRunwayStatus(
+              runwayDays,
+            );
+
+            // Volatility
+            final lastWeekIncome = 150000.0; // Placeholder for historical data
+            final volatility = FinancialCalculator.calculateVolatility(
+              weeklyIncome,
+              lastWeekIncome,
+            );
 
             return SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -51,7 +86,7 @@ class HybridEarnerDashboard extends StatelessWidget {
                     userId: user.uid,
                     onAlertsEnabled: onRefresh,
                   ),
-                  // Header Section
+                  // --- HEADER: TOTAL BALANCE MIX ---
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: const BoxDecoration(
@@ -65,37 +100,35 @@ class HybridEarnerDashboard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Home',
+                          'Hybrid Dashboard',
                           style: TextStyle(
-                            fontSize: 32,
+                            fontSize: 24,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
                         ),
                         const SizedBox(height: 20),
-
-                        // Total Balance Card
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             color: const Color(0xFF2B5BA6),
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
                             children: [
-                              const Text(
-                                'Total Balance',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Total Balance',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
                                       CurrencyFormatter.format(totalBalance),
                                       style: const TextStyle(
                                         color: Colors.white,
@@ -103,75 +136,26 @@ class HybridEarnerDashboard extends StatelessWidget {
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
-                                  ),
-                                  // Pie Chart Indicator
-                                  Container(
-                                    width: 80,
-                                    height: 80,
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Colors.white24,
-                                    ),
-                                    child: Center(
-                                      child: CustomPaint(
-                                        size: const Size(60, 60),
-                                        painter: PieChartPainter(
-                                          salaryIncome,
-                                          gigIncome,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                              const SizedBox(height: 16),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          'Salary',
-                                          style: TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                        Text(
-                                          CurrencyFormatter.format(salaryIncome),
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
+                              // Pie Chart
+                              Container(
+                                width: 60,
+                                height: 60,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white24,
+                                ),
+                                child: Center(
+                                  child: CustomPaint(
+                                    size: const Size(40, 40),
+                                    painter: PieChartPainter(
+                                      salaryIncome,
+                                      gigIncome,
                                     ),
                                   ),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          'Gigs',
-                                          style: TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                        Text(
-                                          CurrencyFormatter.format(gigIncome),
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ],
                           ),
@@ -180,67 +164,139 @@ class HybridEarnerDashboard extends StatelessWidget {
                     ),
                   ),
 
-                  // EnhancedAlertBannersContainer(
-                  //   userId: user.uid,
-                  //   dashboardType: 'hybrid',
-                  // ),
-
-                  // Content Area
+                  // --- DUAL SYSTEM CONTENT ---
                   Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                    ),
+                    decoration: const BoxDecoration(color: Colors.white),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Budget Cards Row
+                          // 1. MONTHLY STABILITY (FIXED)
+                          const Text(
+                            'MONTHLY STABILITY (Salary)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
                           Row(
                             children: [
                               Expanded(
-                                child: _buildBudgetCard(
-                                  'Salary Budget',
-                                  const Color(0xFFB8E6D5),
-                                  [
-                                    {'icon': '🏠', 'name': 'Rent', 'spent': 50000, 'budget': 50000},
-                                    {'icon': '🛒', 'name': 'Groceries', 'spent': 52000, 'budget': 50000},
-                                  ],
+                                child: _buildInfoCard(
+                                  'Safe-to-Spend',
+                                  CurrencyFormatter.format(monthlySafeToSpend),
+                                  Icons.shield_outlined,
+                                  AppTheme.green,
                                 ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: _buildBudgetCard(
-                                  'Gigs Budget',
-                                  const Color(0xFFD4C5F9),
-                                  [
-                                    {'icon': '🎭', 'name': 'Recreation', 'spent': 38000, 'budget': 35000},
-                                    {'icon': '📺', 'name': 'Cable TV', 'spent': 15000, 'budget': 15000},
-                                  ],
+                                child: _buildInfoCard(
+                                  'Next Payday',
+                                  '$daysUntilPayday Days',
+                                  Icons.calendar_today,
+                                  AppTheme.primaryBlue,
                                 ),
                               ),
                             ],
                           ),
 
-                          // After the budget cards Row
-                          const SizedBox(height: 12),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const BudgetTrackerScreen(),
-                                  ),
-                                );
-                              },
-                              child: const Text('See All Budgets >'),
+                          const SizedBox(height: 24),
+
+                          // 2. WEEKLY FLUX (VARIABLE)
+                          const Text(
+                            'WEEKLY FLUX (Gigs)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey,
+                              letterSpacing: 1.2,
                             ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildInfoCard(
+                                  'Runway',
+                                  '$runwayDays Days',
+                                  Icons.timelapse,
+                                  runwayDays > 14
+                                      ? AppTheme.green
+                                      : AppTheme.orange,
+                                  subtitle: runwayStatus,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildInfoCard(
+                                  'Volatility',
+                                  '${volatility > 0 ? '+' : ''}$volatility%',
+                                  Icons.trending_up,
+                                  volatility.abs() > 25
+                                      ? AppTheme.red
+                                      : AppTheme.primaryBlue,
+                                  subtitle: 'vs Last Week',
+                                ),
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // 3. BUDGETS
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Budgets',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          const BudgetTrackerScreen(),
+                                    ),
+                                  );
+                                },
+                                child: const Text('See All >'),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: _buildBudgetCard(
+                                  'Salary (Fixed)',
+                                  const Color(0xFFE3F2FD), // Light Blue
+                                  'monthly',
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _buildBudgetCard(
+                                  'Gigs (Flex)',
+                                  const Color(0xFFF3E5F5), // Light Purple
+                                  'weekly',
+                                ),
+                              ),
+                            ],
                           ),
 
                           const SizedBox(height: 20),
 
-                          // Piggy Bank Card
+                          // TOTAL SAVINGS
                           Container(
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
@@ -253,14 +309,14 @@ class HybridEarnerDashboard extends StatelessWidget {
                               children: [
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Total Savings',
                                         style: TextStyle(
                                           color: Colors.white,
                                           fontSize: 16,
-                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                       const SizedBox(height: 8),
@@ -272,77 +328,20 @@ class HybridEarnerDashboard extends StatelessWidget {
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                      const SizedBox(height: 12),
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 6,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: AppTheme.green,
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                            child: Text(
-                                              '${((salaryIncome / (salaryIncome + gigIncome)) * 100).toStringAsFixed(0)}%',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 6,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.purple[300],
-                                              borderRadius: BorderRadius.circular(12),
-                                            ),
-                                            child: Text(
-                                              '${((gigIncome / (salaryIncome + gigIncome)) * 100).toStringAsFixed(0)}%',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      TextButton(
-                                        onPressed: () {},
-                                        child: const Text(
-                                          'View More >',
-                                          style: TextStyle(color: Colors.white70),
-                                        ),
-                                      ),
                                     ],
                                   ),
                                 ),
-                                Container(
-                                  width: 100,
-                                  height: 100,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white24,
-                                    borderRadius: BorderRadius.circular(50),
-                                  ),
-                                  child: const Icon(
-                                    Icons.savings,
-                                    size: 50,
-                                    color: Colors.white,
-                                  ),
+                                const Icon(
+                                  Icons.savings,
+                                  color: Colors.white,
+                                  size: 40,
                                 ),
                               ],
                             ),
                           ),
 
                           const SizedBox(height: 20),
-
-                          _buildActionButtons(context, onRefresh)
+                          _buildActionButtons(context, onRefresh),
                         ],
                       ),
                     ),
@@ -356,6 +355,58 @@ class HybridEarnerDashboard extends StatelessWidget {
     );
   }
 
+  Widget _buildInfoCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color, {
+    String? subtitle,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(
+              color: Colors.black87,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(color: Colors.black54, fontSize: 11),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Stream<Map<String, dynamic>> _getStatsStream() {
     return _firebaseService.getTransactions().asyncMap((transactions) async {
       double totalIncome = 0;
@@ -363,10 +414,26 @@ class HybridEarnerDashboard extends StatelessWidget {
       double salaryIncome = 0;
       double gigIncome = 0;
       double totalSavings = 0;
+      double weeklyIncome = 0;
+      double weeklyExpenses = 0;
+
+      final now = DateTime.now();
+      // Calculate start of current week (Monday)
+      final weekStart = now.subtract(Duration(days: now.weekday - 1));
+      final weekStartDay = DateTime(
+        weekStart.year,
+        weekStart.month,
+        weekStart.day,
+      );
 
       for (var transaction in transactions) {
+        final date = transaction.date;
+        final isThisWeek =
+            date.isAfter(weekStartDay) || date.isAtSameMomentAs(weekStartDay);
+
         if (transaction.type == 'income') {
           totalIncome += transaction.amount;
+          if (isThisWeek) weeklyIncome += transaction.amount;
 
           if (transaction.source?.toLowerCase() == 'salary' ||
               transaction.category.toLowerCase() == 'salary') {
@@ -376,6 +443,7 @@ class HybridEarnerDashboard extends StatelessWidget {
           }
         } else if (transaction.type == 'expense') {
           totalExpenses += transaction.actualExpenseAmount;
+          if (isThisWeek) weeklyExpenses += transaction.actualExpenseAmount;
 
           if (transaction.hasSavingsAllocation) {
             totalSavings += transaction.savingsAllocation!;
@@ -390,15 +458,13 @@ class HybridEarnerDashboard extends StatelessWidget {
         'salaryIncome': salaryIncome,
         'gigIncome': gigIncome,
         'totalSavings': totalSavings,
+        'weeklyIncome': weeklyIncome,
+        'weeklyExpenses': weeklyExpenses,
       };
     });
   }
 
-  Widget _buildBudgetCard(
-      String title,
-      Color bgColor,
-      List<Map<String, dynamic>> items,
-      ) {
+  Widget _buildBudgetCard(String title, Color bgColor, String period) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -422,45 +488,128 @@ class HybridEarnerDashboard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          ...items.map((item) {
-            final isOverBudget = item['spent'] > item['budget'];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                children: [
-                  Text(
-                    item['icon'],
-                    style: const TextStyle(fontSize: 20),
+          StreamBuilder<List<BudgetModel>>(
+            stream: _firebaseService.getBudgets(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                );
+              }
+
+              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                return const Text(
+                  'No budgets',
+                  style: TextStyle(color: Colors.black45, fontSize: 12),
+                );
+              }
+
+              final budgets = snapshot.data!
+                  .where((b) => b.period == period)
+                  .take(3) // Limit to 3 items per card
+                  .toList();
+
+              if (budgets.isEmpty) {
+                return const Text(
+                  'No budgets',
+                  style: TextStyle(color: Colors.black45, fontSize: 12),
+                );
+              }
+
+              return Column(
+                children: budgets.map((budget) {
+                  final isOverBudget = budget.spent > budget.amount;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
                       children: [
                         Text(
-                          item['name'],
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          _getCategoryIcon(budget.category),
+                          style: const TextStyle(fontSize: 20),
                         ),
-                        Text(
-                          '${CurrencyFormatter.format(item['spent'])}/${CurrencyFormatter.format(item['budget'])}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: isOverBudget ? AppTheme.red : Colors.black54,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                budget.category,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                '${CurrencyFormatter.format(budget.spent)}/${CurrencyFormatter.format(budget.amount)}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isOverBudget
+                                      ? AppTheme.red
+                                      : Colors.black54,
+                                ),
+                              ),
+                              // Tiny progress bar
+                              const SizedBox(height: 4),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(2),
+                                child: LinearProgressIndicator(
+                                  value: (budget.spent / budget.amount).clamp(
+                                    0.0,
+                                    1.0,
+                                  ),
+                                  backgroundColor: Colors.white.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    isOverBudget
+                                        ? AppTheme.red
+                                        : AppTheme.green,
+                                  ),
+                                  minHeight: 2,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-            );
-          }),
+                  );
+                }).toList(),
+              );
+            },
+          ),
         ],
       ),
     );
+  }
+
+  String _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'food':
+        return '🍔';
+      case 'transport':
+        return '🚗';
+      case 'data':
+        return '💾';
+      case 'entertainment':
+        return '🎬';
+      case 'utilities':
+        return '💡';
+      case 'rent':
+        return '🏠';
+      case 'shopping':
+        return '🛍️';
+      case 'health':
+        return '🏥';
+      default:
+        return '📦';
+    }
   }
 }
 

@@ -8,6 +8,8 @@ import '../transactions/add_transaction_screen.dart';
 import 'budget_tracker_screen.dart';
 import 'monthly_reset_manager.dart';
 
+import '../../utils/financial_calculator.dart'; // Add import
+
 class VariableEarnerDashboard extends StatelessWidget {
   final UserModel user;
   final Map<String, dynamic> stats;
@@ -47,19 +49,21 @@ class VariableEarnerDashboard extends StatelessWidget {
             final weeklyIncome = stats['weeklyIncome'] ?? 0.0;
             final weeklyExpenses = stats['weeklyExpenses'] ?? 0.0;
 
-            // Calculate runway period
-            final dailyBurn = weeklyExpenses / 7;
-            final runwayDays = dailyBurn > 0
-                ? (netAmount / dailyBurn).round()
-                : 0;
-            final runwayStatus = runwayDays > 14 ? 'STABLE' : 'CRITICAL';
+            // Calculate runway period using utility
+            final runwayDays = FinancialCalculator.calculateRunwayDays(
+              netAmount,
+              weeklyExpenses,
+            );
+            final runwayStatus = FinancialCalculator.getRunwayStatus(
+              runwayDays,
+            );
 
             // Income volatility check
             final lastWeekIncome = 150000.0; // Would come from historical data
-            final incomeChange = lastWeekIncome > 0
-                ? ((weeklyIncome - lastWeekIncome) / lastWeekIncome * 100)
-                      .round()
-                : 0;
+            final incomeChange = FinancialCalculator.calculateVolatility(
+              weeklyIncome,
+              lastWeekIncome,
+            );
             final isIncomeVolatile = incomeChange.abs() > 25;
 
             return SingleChildScrollView(
@@ -89,9 +93,9 @@ class VariableEarnerDashboard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(
-                              0.1,
-                            ), // FIXED: Using withOpacity
+                            color: Colors.white.withValues(
+                              alpha: 0.1,
+                            ), // Updated to withValues
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
@@ -220,7 +224,7 @@ class VariableEarnerDashboard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: AppTheme.orange.withOpacity(0.2),
+                              color: AppTheme.orange.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: AppTheme.orange),
                             ),
@@ -346,9 +350,9 @@ class VariableEarnerDashboard extends StatelessWidget {
                             //   borderRadius: BorderRadius.circular(16),
                             // ),
                             decoration: BoxDecoration(
-                            color: AppTheme.green.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppTheme.green),
+                              color: AppTheme.green.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppTheme.green),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -528,6 +532,8 @@ class VariableEarnerDashboard extends StatelessWidget {
 
       DateTime now = DateTime.now();
       DateTime weekStart = now.subtract(Duration(days: now.weekday - 1));
+      // Normalize to midnight
+      weekStart = DateTime(weekStart.year, weekStart.month, weekStart.day);
 
       for (var transaction in transactions) {
         if (transaction.type == 'income') {
@@ -571,7 +577,12 @@ class VariableEarnerDashboard extends StatelessWidget {
 
   Stream<Map<String, double>> _getActualSpendingStream() {
     final now = DateTime.now();
-    final weekStart = now.subtract(Duration(days: now.weekday - 1));
+    final weekStartRaw = now.subtract(Duration(days: now.weekday - 1));
+    final weekStart = DateTime(
+      weekStartRaw.year,
+      weekStartRaw.month,
+      weekStartRaw.day,
+    );
 
     return _firebaseService.getTransactions().map((transactions) {
       final Map<String, double> categoryTotals = {};
@@ -602,7 +613,7 @@ class VariableEarnerDashboard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1), // FIXED: Using withOpacity
+            color: Colors.grey.withValues(alpha: 0.1),
             spreadRadius: 1,
             blurRadius: 3,
           ),
@@ -667,9 +678,9 @@ class VariableEarnerDashboard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
+          color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
