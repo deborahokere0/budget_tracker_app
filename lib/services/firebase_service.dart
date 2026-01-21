@@ -6,6 +6,7 @@ import '../models/budget_model.dart';
 import '../models/rule_model.dart';
 import 'alert_service.dart';
 import 'notification_service.dart';
+import 'income_allocation_service.dart';
 
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -19,41 +20,60 @@ class FirebaseService {
 
   /// Check and perform monthly reset if needed (call this on app startup)
   Future<void> checkAndPerformMonthlyReset() async {
+    print('=== MONTHLY RESET CHECK START ===');
+    print('Current User ID: $currentUserId');
+
     if (currentUserId == null) {
+      print('No user ID - skipping reset');
       return;
     }
 
     try {
+      print('Checking if monthly reset is needed...');
+
       final shouldReset = await _shouldResetThisMonth();
+      print('Should reset? $shouldReset');
 
       if (shouldReset) {
+        print('✅ PERFORMING MONTHLY RESET...');
         await _performMonthlyReset();
         await _saveResetTimestamp();
+        print('✅ Monthly reset completed successfully');
+      } else {
+        print('⏭️ Monthly reset already performed this month');
       }
     } catch (e, stackTrace) {
       print('❌ Error during monthly reset check: $e');
       print('Stack trace: $stackTrace');
       // Don't throw - allow app to continue even if reset fails
     }
+
+    print('=== MONTHLY RESET CHECK END ===');
   }
 
   /// Check if reset has been done this month
   Future<bool> _shouldResetThisMonth() async {
     try {
+      print('Fetching reset tracker document...');
       final doc = await _firestore
           .collection('reset_tracker')
           .doc(currentUserId)
           .get();
 
+      print('Reset tracker exists: ${doc.exists}');
+
       if (!doc.exists) {
+        print('No reset record found - first time reset needed');
         return true;
       }
 
       final data = doc.data();
+      print('Reset tracker data: $data');
 
       final lastResetStr = data?['lastResetDate'] as String?;
 
       if (lastResetStr == null) {
+        print('Invalid reset record - reset needed');
         return true;
       }
 
@@ -63,6 +83,12 @@ class FirebaseService {
       // Check if we're in a different month/year
       final isDifferentMonth =
           lastReset.year != now.year || lastReset.month != now.month;
+
+      print(
+        'Last reset: ${lastReset.year}-${lastReset.month}-${lastReset.day}',
+      );
+      print('Current date: ${now.year}-${now.month}-${now.day}');
+      print('Is different month? $isDifferentMonth');
 
       return isDifferentMonth;
     } catch (e, stackTrace) {
@@ -93,6 +119,8 @@ class FirebaseService {
         body:
             'Your budgets have been reset. Review and enable your alert rules for this month.',
       );
+
+      print('Monthly reset operations completed');
     } catch (e) {
       print('Error performing monthly reset: $e');
       rethrow;
@@ -440,7 +468,7 @@ class FirebaseService {
   /// Reset weekly budgets (call this weekly) - IMPROVED VERSION
   Future<void> resetWeeklyBudgets() async {
     try {
-      // print('Resetting weekly budgets...');
+      print('Resetting weekly budgets...');
 
       final budgetsSnapshot = await _firestore
           .collection('budgets')
@@ -450,7 +478,7 @@ class FirebaseService {
           .get();
 
       if (budgetsSnapshot.docs.isEmpty) {
-        // print('No weekly budgets found to reset');
+        print('No weekly budgets found to reset');
         return;
       }
 
@@ -696,9 +724,9 @@ class FirebaseService {
       }
 
       // Check and apply allocation rules (for income)
-      // if (transaction.type == 'income') {
-      //   await _applyAllocationRules(transaction);
-      // }
+      if (transaction.type == 'income') {
+        await _applyAllocationRules(transaction);
+      }
 
       // Check alerts immediately after expense transaction - WITH ERROR HANDLING
       if (transaction.type == 'expense' && currentUserId != null) {
@@ -739,6 +767,32 @@ class FirebaseService {
         });
   }
 
+  Future<List<String>> getUniqueIncomeSources() async {
+    if (currentUserId == null) return [];
+
+    try {
+      final snapshot = await _firestore
+          .collection('transactions')
+          .doc(currentUserId)
+          .collection('userTransactions')
+          .where('type', isEqualTo: 'income')
+          .get();
+
+      final sources = snapshot.docs
+          .map((doc) => doc.data()['source'] as String?)
+          .where((source) => source != null && source.isNotEmpty)
+          .map((source) => source!)
+          .toSet()
+          .toList();
+
+      sources.sort();
+      return sources;
+    } catch (e) {
+      print('Error getting unique income sources: $e');
+      return [];
+    }
+  }
+
   Future<void> deleteTransaction(String transactionId) async {
     try {
       final doc = await _firestore
@@ -773,6 +827,21 @@ class FirebaseService {
     } catch (e) {
       print('Error deleting transaction: $e');
       rethrow;
+    }
+  }
+
+  /// Apply allocation rules for income transaction
+  Future<void> _applyAllocationRules(TransactionModel transaction) async {
+    if (currentUserId == null) return;
+
+    try {
+      final user = await getUserProfile(currentUserId!);
+      if (user != null) {
+        final allocationService = IncomeAllocationService(currentUserId!);
+        await allocationService.processIncomeTransaction(transaction, user);
+      }
+    } catch (e) {
+      print('Error applying allocation rules: $e');
     }
   }
 
@@ -1076,6 +1145,10 @@ class FirebaseService {
         // If it's an alert rule, reset its linked budget
         if (rule.type == 'allocation') {
           await _resetBudgetFromAllocation(ruleId);
+        } else if (rule.type == 'income_allocation') {
+          // If it's an income allocation rule, reverse the allocation
+          final allocationService = IncomeAllocationService(currentUserId!);
+          await allocationService.reverseAllocation(rule);
         }
 
         await doc.reference.delete();
@@ -1269,5 +1342,380 @@ class FirebaseService {
     } catch (e) {
       print('Error updating budget spent: $e');
     }
+  }
+
+  /// Process income transaction with auto-allocation for variable earners
+  Future<void> processIncomeWithAllocation(
+    TransactionModel transaction,
+    UserModel user,
+  ) async {
+    if (user.incomeType != 'variable' || transaction.type != 'income') {
+      return;
+    }
+
+    try {
+      print('Processing income with allocation for variable earner');
+
+      // Initialize allocation service
+      final allocationService = IncomeAllocationService(user.uid);
+
+      // Process allocations
+      final allocations = await allocationService.processIncomeTransaction(
+        transaction,
+        user,
+      );
+
+      // Store allocation details with transaction
+      if (allocations.isNotEmpty) {
+        await _firestore
+            .collection('transactions')
+            .doc(user.uid)
+            .collection('userTransactions')
+            .doc(transaction.id)
+            .update({
+              'allocations': allocations,
+              'totalAllocated': allocations.values.reduce((a, b) => a + b),
+              'processedAt': DateTime.now().toIso8601String(),
+            });
+      }
+
+      print('Income allocation processing completed');
+    } catch (e) {
+      print('Error processing income allocation: $e');
+      rethrow;
+    }
+  }
+
+  /// Get variable earner weekly stats
+  Future<Map<String, dynamic>> getVariableEarnerWeeklyStats() async {
+    final userId = currentUserId;
+    if (userId == null) return {};
+
+    final now = DateTime.now();
+    final weekStart = _getWeekStart(now);
+
+    // Get transactions for current week
+    final transactionsSnapshot = await _firestore
+        .collection('transactions')
+        .doc(userId)
+        .collection('userTransactions')
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(weekStart))
+        .get();
+
+    double weeklyIncome = 0;
+    double weeklyExpenses = 0;
+    Map<String, double> incomeBySource = {};
+    Map<String, double> expenseByCategory = {};
+    double totalAllocated = 0;
+
+    for (var doc in transactionsSnapshot.docs) {
+      final transaction = TransactionModel.fromMap(doc.data());
+
+      if (transaction.type == 'income') {
+        weeklyIncome += transaction.amount;
+        incomeBySource[transaction.category] =
+            (incomeBySource[transaction.category] ?? 0) + transaction.amount;
+
+        // Check for allocations
+        final allocations = doc.data()['allocations'] as Map<String, dynamic>?;
+        if (allocations != null) {
+          totalAllocated += (doc.data()['totalAllocated'] ?? 0).toDouble();
+        }
+      } else {
+        weeklyExpenses += transaction.actualExpenseAmount;
+        expenseByCategory[transaction.category] =
+            (expenseByCategory[transaction.category] ?? 0) +
+            transaction.actualExpenseAmount;
+      }
+    }
+
+    // Get weekly budgets
+    final budgetsSnapshot = await _firestore
+        .collection('budgets')
+        .doc(userId)
+        .collection('userBudgets')
+        .where('period', isEqualTo: 'weekly')
+        .where('startDate', isGreaterThanOrEqualTo: weekStart.toIso8601String())
+        .get();
+
+    List<Map<String, dynamic>> weeklyBudgets = [];
+    double totalBudgetAmount = 0;
+    double totalBudgetSpent = 0;
+
+    for (var doc in budgetsSnapshot.docs) {
+      final budget = BudgetModel.fromMap(doc.data());
+      totalBudgetAmount += budget.amount;
+      totalBudgetSpent += budget.spent;
+
+      // Update spent amount from actual expenses
+      final actualSpent = expenseByCategory[budget.category] ?? 0;
+
+      weeklyBudgets.add({
+        'budget': budget,
+        'actualSpent': actualSpent,
+        'percentUsed': budget.amount > 0
+            ? (actualSpent / budget.amount * 100)
+            : 0,
+      });
+    }
+
+    // Calculate income volatility (compare with last week)
+    final lastWeekStart = weekStart.subtract(const Duration(days: 7));
+    final lastWeekEnd = weekStart.subtract(const Duration(seconds: 1));
+
+    final lastWeekIncomeSnapshot = await _firestore
+        .collection('transactions')
+        .doc(userId)
+        .collection('userTransactions')
+        .where('type', isEqualTo: 'income')
+        .where(
+          'date',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(lastWeekStart),
+        )
+        .where('date', isLessThanOrEqualTo: Timestamp.fromDate(lastWeekEnd))
+        .get();
+
+    double lastWeekIncome = 0;
+    for (var doc in lastWeekIncomeSnapshot.docs) {
+      final transaction = TransactionModel.fromMap(doc.data());
+      lastWeekIncome += transaction.amount;
+    }
+
+    double incomeChangePercent = 0;
+    if (lastWeekIncome > 0) {
+      incomeChangePercent =
+          ((weeklyIncome - lastWeekIncome) / lastWeekIncome * 100);
+    }
+
+    // Calculate runway (how many weeks of expenses can be covered)
+    final totalBalance = await _calculateTotalBalance(userId);
+    final weeklyBurnRate = weeklyExpenses > 0 ? weeklyExpenses : 1;
+    final runwayWeeks = (totalBalance / weeklyBurnRate).round();
+
+    return {
+      'weeklyIncome': weeklyIncome,
+      'weeklyExpenses': weeklyExpenses,
+      'netWeekly': weeklyIncome - weeklyExpenses,
+      'incomeBySource': incomeBySource,
+      'expenseByCategory': expenseByCategory,
+      'totalAllocated': totalAllocated,
+      'unallocatedIncome': weeklyIncome - totalAllocated,
+      'weeklyBudgets': weeklyBudgets,
+      'totalBudgetAmount': totalBudgetAmount,
+      'totalBudgetSpent': totalBudgetSpent,
+      'budgetUtilization': totalBudgetAmount > 0
+          ? (totalBudgetSpent / totalBudgetAmount * 100)
+          : 0,
+      'lastWeekIncome': lastWeekIncome,
+      'incomeChangePercent': incomeChangePercent,
+      'incomeVolatility': incomeChangePercent.abs() > 25 ? 'HIGH' : 'STABLE',
+      'totalBalance': totalBalance,
+      'runwayWeeks': runwayWeeks,
+      'runwayStatus': runwayWeeks > 4 ? 'HEALTHY' : 'CRITICAL',
+      'weekStart': weekStart.toIso8601String(),
+    };
+  }
+
+  /// Create income allocation rule
+  Future<void> createIncomeAllocationRule({
+    required String ruleName,
+    required String incomeSource, // 'all', 'Gig Work', 'Gift', etc.
+    required String allocationType, // 'percentage' or 'fixed'
+    required double allocationValue,
+    required String targetCategory,
+    required int priority,
+  }) async {
+    final userId = currentUserId;
+    if (userId == null) throw Exception('No user logged in');
+
+    final ruleId = _firestore
+        .collection('rules')
+        .doc(userId)
+        .collection('userRules')
+        .doc()
+        .id;
+
+    final rule = RuleModel(
+      id: ruleId,
+      userId: userId,
+      name: ruleName,
+      type: 'income_allocation',
+      conditions: {
+        'incomeSource': incomeSource,
+        'allocationType': allocationType,
+        'allocationValue': allocationValue,
+      },
+      actions: {
+        'targetCategory': targetCategory,
+        'createBudget': true,
+        'createAlert': true,
+      },
+      priority: priority,
+      isActive: true,
+      createdAt: DateTime.now(),
+      incomeSource: incomeSource,
+      allocationType: allocationType,
+      allocationValue: allocationValue,
+      targetCategory: targetCategory,
+      weeklyAllocatedAmount: 0,
+      weekStartDate: _getWeekStart(DateTime.now()),
+    );
+
+    await _firestore
+        .collection('rules')
+        .doc(userId)
+        .collection('userRules')
+        .doc(ruleId)
+        .set(rule.toMap());
+
+    print('Created income allocation rule: $ruleName');
+
+    // Retroactively apply this rule to existing weekly income
+    try {
+      final allocationService = IncomeAllocationService(userId);
+      await allocationService.applyRuleToWeeklyIncome(rule);
+    } catch (e) {
+      print('Error applying rule retroactively: $e');
+    }
+  }
+
+  /// Get all income allocation rules
+  Stream<List<RuleModel>> getIncomeAllocationRules() {
+    final userId = currentUserId;
+    if (userId == null) {
+      return Stream.value([]);
+    }
+
+    return _firestore
+        .collection('rules')
+        .doc(userId)
+        .collection('userRules')
+        .where('type', isEqualTo: 'income_allocation')
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => RuleModel.fromMap(doc.data()))
+              .toList(),
+        );
+  }
+
+  /// Update weekly budgets spent amounts
+  Future<void> updateWeeklyBudgetSpent(String category, double amount) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+
+    final weekStart = _getWeekStart(DateTime.now());
+
+    // Find the weekly budget for this category
+    final budgetQuery = await _firestore
+        .collection('budgets')
+        .doc(userId)
+        .collection('userBudgets')
+        .where('category', isEqualTo: category)
+        .where('period', isEqualTo: 'weekly')
+        .where('startDate', isGreaterThanOrEqualTo: weekStart.toIso8601String())
+        .limit(1)
+        .get();
+
+    if (budgetQuery.docs.isNotEmpty) {
+      final budgetDoc = budgetQuery.docs.first;
+      final currentBudget = BudgetModel.fromMap(budgetDoc.data());
+
+      await _firestore
+          .collection('budgets')
+          .doc(userId)
+          .collection('userBudgets')
+          .doc(budgetDoc.id)
+          .update({'spent': currentBudget.spent + amount});
+
+      print('Updated weekly budget spent for $category: +$amount');
+    }
+  }
+
+  /// Check and perform weekly reset for variable earners
+  Future<void> checkAndPerformWeeklyReset() async {
+    final userId = currentUserId;
+    if (userId == null) return;
+
+    // Get user to check if variable earner
+    final user = await getUserProfile(userId);
+    if (user == null || user.incomeType != 'variable') {
+      return;
+    }
+
+    final now = DateTime.now();
+
+    // Only reset on Mondays
+    if (now.weekday != DateTime.monday) {
+      return;
+    }
+
+    // Check last reset
+    final lastResetDoc = await _firestore
+        .collection('weekly_resets')
+        .doc(userId)
+        .get();
+
+    if (lastResetDoc.exists) {
+      final lastReset = DateTime.parse(
+        lastResetDoc.data()?['lastReset'] ?? '2020-01-01',
+      );
+
+      // If already reset this week, skip
+      if (_getWeekStart(lastReset) == _getWeekStart(now)) {
+        return;
+      }
+    }
+
+    print('Performing weekly reset for variable earner...');
+
+    // Reset allocation tracking
+    final allocationService = IncomeAllocationService(userId);
+    await allocationService.checkAndResetWeeklyAllocations();
+
+    // Update last reset timestamp
+    await _firestore.collection('weekly_resets').doc(userId).set({
+      'lastReset': now.toIso8601String(),
+      'weekStart': _getWeekStart(now).toIso8601String(),
+    });
+
+    // Send notification
+    await NotificationService.sendReminderNotification(
+      title: '📅 New Week Started',
+      body:
+          'Your weekly budgets have been reset. Add income to auto-allocate budgets!',
+    );
+
+    print('Weekly reset completed');
+  }
+
+  /// Calculate total balance (for runway calculation) - helper method
+  Future<double> _calculateTotalBalance(String userId) async {
+    // Get all transactions
+    final transactionsSnapshot = await _firestore
+        .collection('transactions')
+        .doc(userId)
+        .collection('userTransactions')
+        .get();
+
+    double totalIncome = 0;
+    double totalExpenses = 0;
+
+    for (var doc in transactionsSnapshot.docs) {
+      final transaction = TransactionModel.fromMap(doc.data());
+      if (transaction.type == 'income') {
+        totalIncome += transaction.amount;
+      } else {
+        totalExpenses += transaction.actualExpenseAmount;
+      }
+    }
+
+    return totalIncome - totalExpenses;
+  }
+
+  /// Get week start (Monday) - helper method
+  DateTime _getWeekStart(DateTime date) {
+    final monday = date.subtract(Duration(days: date.weekday - 1));
+    return DateTime(monday.year, monday.month, monday.day);
   }
 }

@@ -9,10 +9,10 @@ class MonthlyResetManager extends StatefulWidget {
   final VoidCallback? onAlertsEnabled;
 
   const MonthlyResetManager({
-    Key? key,
+    super.key,
     required this.userId,
     this.onAlertsEnabled,
-  }) : super(key: key);
+  });
 
   @override
   State<MonthlyResetManager> createState() => _MonthlyResetManagerState();
@@ -82,13 +82,10 @@ class _MonthlyResetManagerState extends State<MonthlyResetManager> {
               Text(
                 'Your alert rules have been disabled for the new month. '
                 'Review and re-enable the ones you want to keep active.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.orange.shade700,
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.orange.shade700),
               ),
               const SizedBox(height: 16),
-              
+
               // Quick actions
               Row(
                 children: [
@@ -112,12 +109,14 @@ class _MonthlyResetManagerState extends State<MonthlyResetManager> {
                         foregroundColor: AppTheme.primaryBlue,
                         side: BorderSide(color: AppTheme.primaryBlue),
                       ),
-                      onPressed: _isLoading ? null : () => _showCustomEnableDialog(disabledAlerts),
+                      onPressed: _isLoading
+                          ? null
+                          : () => _showCustomEnableDialog(disabledAlerts),
                     ),
                   ),
                 ],
               ),
-              
+
               // Show disabled alerts count
               const SizedBox(height: 8),
               Text(
@@ -137,17 +136,17 @@ class _MonthlyResetManagerState extends State<MonthlyResetManager> {
 
   Future<void> _enableAllAlerts() async {
     setState(() => _isLoading = true);
-    
+
     try {
       await _firebaseService.enableAllAlertRules();
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('✅ All alert rules have been enabled'),
           backgroundColor: AppTheme.green,
         ),
       );
-      
+
       widget.onAlertsEnabled?.call();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -163,9 +162,7 @@ class _MonthlyResetManagerState extends State<MonthlyResetManager> {
 
   void _showCustomEnableDialog(List<RuleModel> disabledAlerts) {
     // Initialize selection state
-    _selectedAlerts = {
-      for (var alert in disabledAlerts) alert.id: false,
-    };
+    _selectedAlerts = {for (var alert in disabledAlerts) alert.id: false};
 
     showDialog(
       context: context,
@@ -199,16 +196,17 @@ class _MonthlyResetManagerState extends State<MonthlyResetManager> {
                       child: SingleChildScrollView(
                         child: Column(
                           children: disabledAlerts.map((alert) {
-                            final category = alert.conditions['category'] ?? 'Unknown';
-                            final thresholdType = alert.conditions['thresholdType'] ?? 'amount';
-                            final thresholdValue = alert.conditions['thresholdValue'] ?? 0.0;
-                            
+                            final category =
+                                alert.conditions['category'] ?? 'Unknown';
+                            final thresholdType =
+                                alert.conditions['thresholdType'] ?? 'amount';
+                            final thresholdValue =
+                                alert.conditions['thresholdValue'] ?? 0.0;
+
                             return CheckboxListTile(
                               title: Text(alert.name),
                               subtitle: Text(
-                                '$category - ${thresholdType == 'percentage' 
-                                  ? '${thresholdValue}%' 
-                                  : '\$${thresholdValue.toStringAsFixed(2)}'}',
+                                '$category - ${thresholdType == 'percentage' ? '$thresholdValue%' : '\$${thresholdValue.toStringAsFixed(2)}'}',
                                 style: const TextStyle(fontSize: 12),
                               ),
                               value: _selectedAlerts[alert.id] ?? false,
@@ -271,7 +269,7 @@ class _MonthlyResetManagerState extends State<MonthlyResetManager> {
 
   Future<void> _enableSelectedAlerts(List<RuleModel> disabledAlerts) async {
     setState(() => _isLoading = true);
-    
+
     try {
       final batch = FirebaseFirestore.instance.batch();
       int enabledCount = 0;
@@ -284,16 +282,12 @@ class _MonthlyResetManagerState extends State<MonthlyResetManager> {
               .collection('userRules')
               .doc(alert.id);
 
-          final updates = {
-            'isActive': true,
-          };
+          final updates = {'isActive': true};
 
           // If auto-enable preference is set, update the rule
           if (_autoEnableNextMonth) {
-            updates['conditions'] = {
-              ...alert.conditions,
-              'autoEnableMonthly': true,
-            } as bool;
+            updates['conditions'] =
+                {...alert.conditions, 'autoEnableMonthly': true} as bool;
           }
 
           batch.update(docRef, updates);
@@ -305,11 +299,13 @@ class _MonthlyResetManagerState extends State<MonthlyResetManager> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✅ Enabled $enabledCount alert rule${enabledCount != 1 ? 's' : ''}'),
+          content: Text(
+            '✅ Enabled $enabledCount alert rule${enabledCount != 1 ? 's' : ''}',
+          ),
           backgroundColor: AppTheme.green,
         ),
       );
-      
+
       widget.onAlertsEnabled?.call();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -331,11 +327,11 @@ class SpendingTrendsWidget extends StatelessWidget {
   final int monthsToShow;
 
   const SpendingTrendsWidget({
-    Key? key,
+    super.key,
     required this.userId,
     required this.category,
     this.monthsToShow = 6,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -434,11 +430,11 @@ class _TrendLinePainter extends CustomPainter {
     final fillPath = Path();
 
     final stepX = size.width / (values.length - 1);
-    
+
     for (int i = 0; i < values.length; i++) {
       final x = i * stepX;
       final y = size.height - (values[i] / maxValue * size.height);
-      
+
       if (i == 0) {
         path.moveTo(x, y);
         fillPath.moveTo(x, size.height);

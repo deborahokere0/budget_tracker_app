@@ -5,6 +5,7 @@ import '../../services/alert_service.dart';
 import '../../services/notification_service.dart';
 import '../../models/transaction_model.dart';
 import '../../models/rule_model.dart';
+import '../../models/user_model.dart';
 import '../../theme/app_theme.dart';
 import '../../constants/category_constants.dart';
 
@@ -37,11 +38,22 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   bool _saveToSavings = false;
   String? _selectedSavingsRule;
   List<RuleModel> _savingsRules = [];
+  UserModel? _currentUser;
 
-  List<String> get _currentCategories =>
-      _transactionType == 'income'
-          ? CategoryConstants.incomeCategories
-          : CategoryConstants.expenseCategories;
+  List<String> get _currentCategories {
+    if (_transactionType == 'expense') {
+      return CategoryConstants.expenseCategories;
+    }
+
+    // For income, filter out Salary for variable earners
+    if (_currentUser?.incomeType == 'variable') {
+      return CategoryConstants.incomeCategories
+          .where((category) => category != 'Salary')
+          .toList();
+    }
+
+    return CategoryConstants.incomeCategories;
+  }
 
   @override
   void initState() {
@@ -49,15 +61,43 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     if (widget.initialTransactionType != null) {
       _transactionType = widget.initialTransactionType!;
     }
-    _selectedCategory = _currentCategories.first;
+    // Initialize with a safe default based on type
+    if (_transactionType == 'expense') {
+      _selectedCategory = CategoryConstants.expenseCategories.first;
+    } else {
+      _selectedCategory = CategoryConstants.incomeCategories.first;
+    }
     _loadSavingsRules();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    if (_firebaseService.currentUserId != null) {
+      final user = await _firebaseService.getUserProfile(
+        _firebaseService.currentUserId!,
+      );
+      if (mounted) {
+        setState(() {
+          _currentUser = user;
+
+          // Re-validate selected category after user profile loads
+          // This ensures if 'Salary' was selected by default but user is variable,
+          // we switch to a valid category
+          if (!_currentCategories.contains(_selectedCategory)) {
+            _selectedCategory = _currentCategories.first;
+          }
+        });
+      }
+    }
   }
 
   Future<void> _loadSavingsRules() async {
     try {
       final rules = await _firebaseService.getRules().first;
       setState(() {
-        _savingsRules = rules.where((r) => r.type == 'savings' && r.isActive).toList();
+        _savingsRules = rules
+            .where((r) => r.type == 'savings' && r.isActive)
+            .toList();
       });
     } catch (e) {
       print('Error loading savings rules: $e');
@@ -104,7 +144,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       final savingsAmount = double.tryParse(_savingsAmountController.text);
       final totalAmount = double.tryParse(_amountController.text);
 
-      if (savingsAmount != null && totalAmount != null && savingsAmount > totalAmount) {
+      if (savingsAmount != null &&
+          totalAmount != null &&
+          savingsAmount > totalAmount) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Savings amount cannot exceed total amount'),
@@ -120,7 +162,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     try {
       final amount = double.parse(_amountController.text);
       final description = _descriptionController.text.trim();
-      final source = _transactionType == 'income' && _sourceController.text.isNotEmpty
+      final source =
+          _transactionType == 'income' && _sourceController.text.isNotEmpty
           ? _sourceController.text.trim()
           : null;
 
@@ -131,7 +174,9 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
       if (_saveToSavings && _selectedSavingsRule != null) {
         savingsAllocation = double.parse(_savingsAmountController.text);
-        final selectedRule = _savingsRules.firstWhere((r) => r.id == _selectedSavingsRule);
+        final selectedRule = _savingsRules.firstWhere(
+          (r) => r.id == _selectedSavingsRule,
+        );
         savingsGoalId = selectedRule.id;
         savingsGoalName = selectedRule.isPiggyBank == true
             ? 'Piggybank'
@@ -153,10 +198,16 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
         savingsGoalName: savingsGoalName,
       );
 
-      print('Saving transaction: ${transaction.description} (${transaction.category})');
+      print(
+        'Saving transaction: ${transaction.description} (${transaction.category})',
+      );
 
       // Save transaction - alert check now happens inside addTransaction
       final transactionId = await _firebaseService.addTransaction(transaction);
+
+      if (_transactionType == 'income') {
+        await _processIncomeAllocation(transaction);
+      }
 
       if (transactionId.isEmpty) {
         throw Exception('Failed to save transaction');
@@ -178,7 +229,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       }
 
       // Process savings rules for expense transactions
-      if (savedTransaction.type == 'expense' && savedTransaction.hasSavingsAllocation) {
+      if (savedTransaction.type == 'expense' &&
+          savedTransaction.hasSavingsAllocation) {
         try {
           await _processSavingsRules(savedTransaction);
         } catch (e) {
@@ -190,9 +242,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_saveToSavings
-                ? 'Transaction added with ₦${savingsAllocation!.toStringAsFixed(0)} saved!'
-                : 'Transaction added successfully!'),
+            content: Text(
+              _saveToSavings
+                  ? 'Transaction added with ₦${savingsAllocation!.toStringAsFixed(0)} saved!'
+                  : 'Transaction added successfully!',
+            ),
             backgroundColor: AppTheme.green,
           ),
         );
@@ -205,10 +259,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: AppTheme.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.red),
         );
       }
     } finally {
@@ -218,22 +269,48 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     }
   }
 
+  Future<void> _processIncomeAllocation(TransactionModel transaction) async {
+    if (transaction.type != 'income') return;
+
+    try {
+      // Get user profile
+      final user = await _firebaseService.getUserProfile(
+        _firebaseService.currentUserId!,
+      );
+
+      if (user == null || user.incomeType != 'variable') {
+        return;
+      }
+
+      // Process income allocation for variable earners
+      await _firebaseService.processIncomeWithAllocation(transaction, user);
+
+      print('Income allocation processed successfully');
+    } catch (e) {
+      print('Error processing income allocation: $e');
+      // Don't throw - let transaction save complete even if allocation fails
+    }
+  }
+
   Future<void> _processAllocationRules(TransactionModel transaction) async {
     try {
       final rules = await _firebaseService.getRules().first;
-      final allocationRules = rules.where((r) =>
-      r.type == 'allocation' && r.isActive
-      ).toList();
+      final allocationRules = rules
+          .where((r) => r.type == 'allocation' && r.isActive)
+          .toList();
 
       allocationRules.sort((a, b) => b.priority.compareTo(a.priority));
 
       // Get user profile once
-      final user = await _firebaseService.getUserProfile(_firebaseService.currentUserId!);
+      final user = await _firebaseService.getUserProfile(
+        _firebaseService.currentUserId!,
+      );
       final monthlyIncome = user?.monthlyIncome ?? 0.0;
 
       for (var rule in allocationRules) {
         final amountType = rule.conditions['amountType'] as String? ?? 'amount';
-        final amountValue = (rule.conditions['amountValue'] as num?)?.toDouble() ?? 0.0;
+        final amountValue =
+            (rule.conditions['amountValue'] as num?)?.toDouble() ?? 0.0;
 
         double percentage = 0.0;
         if (monthlyIncome > 0) {
@@ -267,15 +344,19 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     try {
       // Get all active savings rules for this category
       final rules = await _firebaseService.getRules().first;
-      final savingsRules = rules.where((r) =>
-      r.type == 'savings' &&
-          r.isActive &&
-          r.conditions['category'] == transaction.category
-      ).toList();
+      final savingsRules = rules
+          .where(
+            (r) =>
+                r.type == 'savings' &&
+                r.isActive &&
+                r.conditions['category'] == transaction.category,
+          )
+          .toList();
 
       for (var rule in savingsRules) {
         // Update current amount for the goal
-        final newAmount = (rule.currentAmount ?? 0.0) +
+        final newAmount =
+            (rule.currentAmount ?? 0.0) +
             (transaction.savingsAllocation ?? 0.0);
 
         final updatedRule = rule.copyWith(
@@ -297,7 +378,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   Widget _buildPercentageChip(String label, double percentage) {
     final totalAmount = double.tryParse(_amountController.text) ?? 0;
     final savingsAmount = double.tryParse(_savingsAmountController.text) ?? 0;
-    final isSelected = totalAmount > 0 &&
+    final isSelected =
+        totalAmount > 0 &&
         savingsAmount > 0 &&
         (savingsAmount / totalAmount - percentage).abs() < 0.01;
 
@@ -372,7 +454,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         onTap: () {
                           setState(() {
                             _transactionType = 'income';
-                            _selectedCategory = CategoryConstants.incomeCategories.first;
+                            _selectedCategory =
+                                CategoryConstants.incomeCategories.first;
                             _saveToSavings = false;
                           });
                         },
@@ -402,7 +485,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                         onTap: () {
                           setState(() {
                             _transactionType = 'expense';
-                            _selectedCategory = CategoryConstants.expenseCategories.first;
+                            _selectedCategory =
+                                CategoryConstants.expenseCategories.first;
                           });
                         },
                         child: Container(
@@ -462,10 +546,12 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
               // Category Dropdown
               DropdownButtonFormField<String>(
-                initialValue: _selectedCategory,
+                value: _selectedCategory,
                 decoration: InputDecoration(
                   labelText: 'Category',
-                  prefixIcon: Icon(CategoryConstants.getIcon(_selectedCategory)),
+                  prefixIcon: Icon(
+                    CategoryConstants.getIcon(_selectedCategory),
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -492,6 +578,31 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   }
                 },
               ),
+
+              // Source Field (Income Only) - Moved here
+              if (_transactionType == 'income') ...[
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _sourceController,
+                  decoration: InputDecoration(
+                    labelText: _currentUser?.incomeType == 'variable'
+                        ? 'Income Source'
+                        : 'Income Source (Optional)',
+                    hintText: 'e.g., Upwork, Salary, Uber',
+                    prefixIcon: const Icon(Icons.source),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (_currentUser?.incomeType == 'variable' &&
+                        (value == null || value.trim().isEmpty)) {
+                      return 'Please enter an income source';
+                    }
+                    return null;
+                  },
+                ),
+              ],
 
               const SizedBox(height: 16),
 
@@ -538,31 +649,18 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                 ),
               ),
 
-              const SizedBox(height: 16),
-
-              // Source Field (Income Only)
-              if (_transactionType == 'income')
-                TextFormField(
-                  controller: _sourceController,
-                  decoration: InputDecoration(
-                    labelText: 'Source (Optional)',
-                    hintText: 'e.g., Salary, Upwork, Uber',
-                    prefixIcon: const Icon(Icons.source),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-
               // Save to Savings Section (Expense Only)
-              if (_transactionType == 'expense' && _savingsRules.isNotEmpty) ...[
+              if (_transactionType == 'expense' &&
+                  _savingsRules.isNotEmpty) ...[
                 const SizedBox(height: 24),
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: AppTheme.green.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.green.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: AppTheme.green.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -592,7 +690,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                       if (_saveToSavings) ...[
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
-                          initialValue: _selectedSavingsRule,
+                          value: _selectedSavingsRule,
                           decoration: InputDecoration(
                             labelText: 'Select Savings Goal',
                             prefixIcon: const Icon(Icons.flag),
@@ -620,10 +718,14 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                           controller: _savingsAmountController,
                           keyboardType: TextInputType.number,
                           inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+                            FilteringTextInputFormatter.allow(
+                              RegExp(r'^\d+\.?\d{0,2}'),
+                            ),
                           ],
                           onChanged: (value) {
-                            setState(() {}); // Trigger rebuild to update chip selection
+                            setState(
+                              () {},
+                            ); // Trigger rebuild to update chip selection
                           },
                           decoration: InputDecoration(
                             labelText: 'Amount to Save (₦)',
@@ -647,8 +749,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                             if (savingsAmount == null || savingsAmount <= 0) {
                               return 'Please enter a valid amount';
                             }
-                            final totalAmount = double.tryParse(_amountController.text);
-                            if (totalAmount != null && savingsAmount > totalAmount) {
+                            final totalAmount = double.tryParse(
+                              _amountController.text,
+                            );
+                            if (totalAmount != null &&
+                                savingsAmount > totalAmount) {
                               return 'Cannot exceed ₦${totalAmount.toStringAsFixed(2)}';
                             }
                             return null;
@@ -689,20 +794,20 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
                   ),
                   child: _isLoading
                       ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  )
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
                       : Text(
-                    'ADD ${_transactionType.toUpperCase()}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                          'ADD ${_transactionType.toUpperCase()}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
             ],

@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
 import '../../models/budget_model.dart';
+import '../../models/rule_model.dart';
 import '../../services/firebase_service.dart';
+import '../../services/income_allocation_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/currency_formatter.dart';
+import '../../constants/category_constants.dart';
 import '../transactions/add_transaction_screen.dart';
+import '../rules/add_rule_screen.dart';
 import 'budget_tracker_screen.dart';
 import 'monthly_reset_manager.dart';
 
-import '../../utils/financial_calculator.dart'; // Add import
-
-class VariableEarnerDashboard extends StatelessWidget {
+class VariableEarnerDashboard extends StatefulWidget {
   final UserModel user;
   final Map<String, dynamic> stats;
   final VoidCallback onRefresh;
-  final FirebaseService _firebaseService = FirebaseService();
 
-  VariableEarnerDashboard({
+  const VariableEarnerDashboard({
     super.key,
     required this.user,
     required this.onRefresh,
@@ -24,476 +25,939 @@ class VariableEarnerDashboard extends StatelessWidget {
   });
 
   @override
+  State<VariableEarnerDashboard> createState() =>
+      _VariableEarnerDashboardState();
+}
+
+class _VariableEarnerDashboardState extends State<VariableEarnerDashboard> {
+  final FirebaseService _firebaseService = FirebaseService();
+  late final IncomeAllocationService _allocationService;
+
+  Map<String, dynamic> _weeklyStats = {};
+  List<RuleModel> _allocationRules = [];
+  List<Map<String, dynamic>> _weeklyBudgets = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _allocationService = IncomeAllocationService(widget.user.uid);
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      // Check for weekly reset (if Monday)
+      await _firebaseService.checkAndPerformWeeklyReset();
+
+      // Load weekly stats
+      final stats = await _firebaseService.getVariableEarnerWeeklyStats();
+
+      // Load allocation rules
+      final rules = await _firebaseService.getIncomeAllocationRules().first;
+
+      // Get allocation summary
+      final allocationSummary = await _allocationService
+          .getWeeklyAllocationSummary();
+
+      setState(() {
+        _weeklyStats = {...stats, ...allocationSummary};
+        _allocationRules = rules.where((r) => r.isActive).toList();
+        _weeklyBudgets = stats['weeklyBudgets'] ?? [];
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading dashboard: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return SafeArea(
       child: RefreshIndicator(
-        onRefresh: () async => onRefresh(),
-        child: StreamBuilder<Map<String, dynamic>>(
-          stream: _getStatsStream(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
+        onRefresh: () async {
+          await _loadDashboardData();
+          widget.onRefresh();
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              MonthlyResetManager(
+                userId: widget.user.uid,
+                onAlertsEnabled: widget.onRefresh,
+              ),
+              _buildHeader(),
+              _buildWeeklySummaryCard(),
+              _buildIncomeAllocationSection(),
+              _buildWeeklyBudgetsSection(),
+              _buildQuickActionsSection(),
+              _buildIncomeSourceBreakdown(),
+              _buildAllocationRulesSection(),
+              const SizedBox(height: 100),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-            final stats =
-                snapshot.data ??
-                {
-                  'netAmount': 0.0,
-                  'weeklyIncome': 0.0,
-                  'weeklyExpenses': 0.0,
-                  'totalIncome': 0.0,
-                  'totalExpenses': 0.0,
-                };
+  Widget _buildHeader() {
+    final runwayWeeks = _weeklyStats['runwayWeeks'] ?? 0;
+    final runwayStatus = _weeklyStats['runwayStatus'] ?? 'UNKNOWN';
 
-            final netAmount = stats['netAmount'] ?? 0.0;
-            final weeklyIncome = stats['weeklyIncome'] ?? 0.0;
-            final weeklyExpenses = stats['weeklyExpenses'] ?? 0.0;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Home',
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Net Amount',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                    Text(
+                      _getDateRange(),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  CurrencyFormatter.format(_weeklyStats['netWeekly'] ?? 0),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildStatColumn(
+                      'Earned',
+                      _weeklyStats['weeklyIncome'] ?? 0,
+                    ),
+                    _buildStatColumn(
+                      'Spent',
+                      _weeklyStats['weeklyExpenses'] ?? 0,
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text(
+                          'RUNWAY PERIOD',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color:
+                                (runwayStatus == 'HEALTHY'
+                                        ? Colors.green
+                                        : Colors.red)
+                                    .withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color:
+                                  (runwayStatus == 'HEALTHY'
+                                          ? Colors.green
+                                          : Colors.red)
+                                      .withOpacity(0.5),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.timer,
+                                color: runwayStatus == 'HEALTHY'
+                                    ? Colors.green
+                                    : Colors.red,
+                                size: 14,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$runwayWeeks weeks',
+                                style: TextStyle(
+                                  color: runwayStatus == 'HEALTHY'
+                                      ? Colors.green
+                                      : Colors.red,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-            // Calculate runway period using utility
-            final runwayDays = FinancialCalculator.calculateRunwayDays(
-              netAmount,
-              weeklyExpenses,
-            );
-            final runwayStatus = FinancialCalculator.getRunwayStatus(
-              runwayDays,
-            );
+  Widget _buildWeeklySummaryCard() {
+    final weeklyIncome = _weeklyStats['weeklyIncome'] ?? 0.0;
+    final weeklyExpenses = _weeklyStats['weeklyExpenses'] ?? 0.0;
+    final incomeVolatility = _weeklyStats['incomeVolatility'] ?? 'STABLE';
+    final incomeChangePercent = _weeklyStats['incomeChangePercent'] ?? 0.0;
 
-            // Income volatility check
-            final lastWeekIncome = 150000.0; // Would come from historical data
-            final incomeChange = FinancialCalculator.calculateVolatility(
-              weeklyIncome,
-              lastWeekIncome,
-            );
-            final isIncomeVolatile = incomeChange.abs() > 25;
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 10,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Weekly Overview',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: incomeVolatility == 'HIGH'
+                      ? Colors.orange.withOpacity(0.1)
+                      : Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      incomeChangePercent > 0
+                          ? Icons.trending_up
+                          : Icons.trending_down,
+                      color: incomeChangePercent > 0
+                          ? Colors.green
+                          : Colors.red,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${incomeChangePercent.abs().toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        color: incomeChangePercent > 0
+                            ? Colors.green
+                            : Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
-            return SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Column(
+  Widget _buildIncomeAllocationSection() {
+    final totalAllocated = _weeklyStats['totalAllocated'] ?? 0.0;
+    final unallocated = _weeklyStats['unallocated'] ?? 0.0;
+    final weeklyIncome = _weeklyStats['weeklyIncome'] ?? 0.0;
+
+    if (weeklyIncome == 0) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blue.withOpacity(0.3)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.info_outline, color: Colors.blue),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'No income recorded this week. Add income to start auto-allocation.',
+                style: TextStyle(fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final allocationPercent = weeklyIncome > 0
+        ? (totalAllocated / weeklyIncome * 100)
+        : 0.0;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.primaryBlue,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryBlue.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Auto-Allocation Status',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${allocationPercent.toStringAsFixed(0)}%',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Progress Bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: allocationPercent / 100,
+              minHeight: 12,
+              backgroundColor: Colors.white.withOpacity(0.2),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                allocationPercent > 80 ? AppTheme.green : Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  MonthlyResetManager(
-                    userId: user.uid,
-                    onAlertsEnabled: onRefresh,
+                  Text(
+                    'Allocated',
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
                   ),
-                  // Header
-                  Container(
-                    padding: const EdgeInsets.all(20),
+                  const SizedBox(height: 4),
+                  Text(
+                    CurrencyFormatter.format(totalAllocated),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Unallocated',
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    CurrencyFormatter.format(unallocated),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: unallocated > 0 ? AppTheme.orange : Colors.white,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeeklyBudgetsSection() {
+    if (_weeklyBudgets.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.account_balance_wallet,
+                size: 48,
+                color: Colors.grey[400],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'No weekly budgets yet',
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AddRuleScreen(ruleType: 'allocation'),
+                    ),
+                  ).then((result) {
+                    if (result == true) {
+                      _loadDashboardData();
+                    }
+                  });
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryBlue,
+                ),
+                child: const Text(
+                  'Create Allocation Rule',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Weekly Budgets',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => BudgetTrackerScreen()),
+                  );
+                },
+                child: const Text('View All'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          SizedBox(
+            height: 140,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _weeklyBudgets.length,
+              itemBuilder: (context, index) {
+                final budgetData = _weeklyBudgets[index];
+                final budget = budgetData['budget'] as BudgetModel;
+                final actualSpent = budgetData['actualSpent'] as double;
+                final percentUsed = budgetData['percentUsed'] as double;
+
+                return _buildBudgetCard(budget, actualSpent, percentUsed);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBudgetCard(
+    BudgetModel budget,
+    double actualSpent,
+    double percentUsed,
+  ) {
+    final isOverBudget = actualSpent > budget.amount;
+
+    return Container(
+      width: 180,
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isOverBudget ? Colors.red.withOpacity(0.3) : Colors.grey[300]!,
+          width: isOverBudget ? 2 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 5,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: CategoryConstants.getColor(
+                    budget.category,
+                  ).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  CategoryConstants.getIcon(budget.category),
+                  color: CategoryConstants.getColor(budget.category),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  budget.category,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            CurrencyFormatter.format(actualSpent),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: isOverBudget ? AppTheme.red : Colors.black87,
+            ),
+          ),
+          Text(
+            'of ${CurrencyFormatter.format(budget.amount)}',
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionsSection() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Quick Actions',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildActionButton(
+                  'Add Income',
+                  Icons.arrow_downward,
+                  Colors.green,
+                  () => _navigateToAddTransaction('income'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildActionButton(
+                  'Add Expense',
+                  Icons.arrow_upward,
+                  Colors.red,
+                  () => _navigateToAddTransaction('expense'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Navigate to Budget Tracker
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BudgetTrackerScreen()),
+              ).then((result) {
+                _loadDashboardData();
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppTheme.primaryBlue,
+                    AppTheme.primaryBlue.withOpacity(0.8),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primaryBlue.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.account_balance_wallet,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'View Budget Tracker',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.arrow_forward_ios,
+                    color: Colors.white,
+                    size: 14,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton(
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onPressed,
+  ) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [Icon(icon), const SizedBox(width: 8), Text(label)],
+      ),
+    );
+  }
+
+  Widget _buildIncomeSourceBreakdown() {
+    final sourceBreakdown =
+        _weeklyStats['sourceBreakdown'] as Map<String, double>? ?? {};
+
+    if (sourceBreakdown.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 5,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Income Sources',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          ...sourceBreakdown.entries.map((entry) {
+            final total = sourceBreakdown.values.reduce((a, b) => a + b);
+            final percentage = total > 0 ? (entry.value / total * 100) : 0;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    CategoryConstants.getIcon(entry.key),
+                    size: 20,
+                    color: CategoryConstants.getColor(entry.key),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Home',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(
-                              alpha: 0.1,
-                            ), // Updated to withValues
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text(
-                                    'Net Amount',
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  Text(
-                                    _getDateRange(),
-                                    style: const TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              entry.key,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                CurrencyFormatter.format(netAmount),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Earned',
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      Text(
-                                        CurrencyFormatter.format(weeklyIncome),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.center,
-                                    children: [
-                                      const Text(
-                                        'Spent',
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      Text(
-                                        CurrencyFormatter.format(
-                                          weeklyExpenses,
-                                        ),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      const Text(
-                                        'RUNWAY PERIOD',
-                                        style: TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 10,
-                                        ),
-                                      ),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.warning,
-                                            color: runwayStatus == 'STABLE'
-                                                ? Colors.yellow
-                                                : Colors.red,
-                                            size: 16,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            runwayStatus,
-                                            style: TextStyle(
-                                              color: runwayStatus == 'STABLE'
-                                                  ? Colors.yellow
-                                                  : Colors.red,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        // Income volatility indicator
-                        if (isIncomeVolatile)
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppTheme.orange.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppTheme.orange),
                             ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  incomeChange > 0
-                                      ? Icons.trending_up
-                                      : Icons.trending_down,
-                                  color: AppTheme.orange,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Income Volatility Alert',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      Text(
-                                        'Income ${incomeChange > 0 ? "increased" : "decreased"} by ${incomeChange.abs()}% from last week',
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
+                            Text(
+                              CurrencyFormatter.format(entry.value),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: percentage / 100,
+                            minHeight: 4,
+                            backgroundColor: Colors.grey[300],
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              CategoryConstants.getColor(entry.key),
                             ),
                           ),
+                        ),
                       ],
-                    ),
-                  ),
-
-                  // White content area
-                  Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(24),
-                        topRight: Radius.circular(24),
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Weekly Budget Overview
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                'Weekly Budget Overview',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          const BudgetTrackerScreen(),
-                                    ),
-                                  );
-                                },
-                                child: const Text('See All >'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          SizedBox(
-                            height: 100,
-                            child: StreamBuilder<List<BudgetModel>>(
-                              stream: _firebaseService.getBudgets(),
-                              builder: (context, snapshot) {
-                                if (!snapshot.hasData ||
-                                    snapshot.data!.isEmpty) {
-                                  return const Center(
-                                    child: Text('No budgets set'),
-                                  );
-                                }
-                                final budgets = snapshot.data!
-                                    .where((b) => b.period == 'weekly')
-                                    .toList();
-
-                                if (budgets.isEmpty) {
-                                  return const Center(
-                                    child: Text('No weekly budgets'),
-                                  );
-                                }
-
-                                return ListView.builder(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: budgets.length,
-                                  itemBuilder: (context, index) {
-                                    return _buildWeeklyBudgetCard(
-                                      budgets[index],
-                                    );
-                                  },
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Cashflow Summary
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            // decoration: BoxDecoration(
-                            //   gradient: const LinearGradient(
-                            //     colors: [Color(0xFF2B5BA6),Color(0xFFFFFF),Color(0xFF1E3A6D),],),
-                            //   borderRadius: BorderRadius.circular(16),
-                            // ),
-                            decoration: BoxDecoration(
-                              color: AppTheme.green.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppTheme.green),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text(
-                                      'Cashflow Summary',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: AppTheme.green,
-                                      ),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.refresh, size: 20),
-                                      onPressed: onRefresh,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      color: AppTheme.green,
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceAround,
-                                  children: [
-                                    Column(
-                                      children: [
-                                        const Icon(
-                                          Icons.arrow_downward,
-                                          color: AppTheme.green,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          CurrencyFormatter.format(
-                                            weeklyIncome,
-                                          ),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: AppTheme.green,
-                                          ),
-                                        ),
-                                        const Text(
-                                          'Income',
-                                          style: TextStyle(fontSize: 12),
-                                        ),
-                                      ],
-                                    ),
-                                    Column(
-                                      children: [
-                                        const Icon(
-                                          Icons.arrow_upward,
-                                          color: AppTheme.red,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          CurrencyFormatter.format(
-                                            weeklyExpenses,
-                                          ),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: AppTheme.red,
-                                          ),
-                                        ),
-                                        const Text(
-                                          'Expenses',
-                                          style: TextStyle(fontSize: 12),
-                                        ),
-                                      ],
-                                    ),
-                                    Column(
-                                      children: [
-                                        const Icon(
-                                          Icons.savings,
-                                          color: AppTheme.primaryBlue,
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          CurrencyFormatter.format(
-                                            weeklyIncome - weeklyExpenses,
-                                          ),
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: AppTheme.primaryBlue,
-                                          ),
-                                        ),
-                                        const Text(
-                                          'Saved',
-                                          style: TextStyle(fontSize: 12),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Income Tracker
-                          const Text(
-                            'Income Tracker',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              _buildIncomeCard(
-                                'Gig Work',
-                                stats['gigIncome'] ?? 0.0,
-                                Icons.work,
-                                Colors.purple,
-                              ),
-                              const SizedBox(width: 12),
-                              _buildIncomeCard(
-                                'Other',
-                                0.0, // Would track other income
-                                Icons.more_horiz,
-                                Colors.orange,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-
-                          _buildActionButtons(context),
-                        ],
-                      ),
                     ),
                   ),
                 ],
               ),
             );
-          },
-        ),
+          }),
+        ],
       ),
+    );
+  }
+
+  Widget _buildAllocationRulesSection() {
+    if (_allocationRules.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Active Allocation Rules',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              TextButton(
+                onPressed: () {
+                  // Navigate to rules screen
+                },
+                child: const Text('Manage'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ..._allocationRules.map((rule) {
+            final allocationText = rule.allocationType == 'percentage'
+                ? '${rule.allocationValue?.toStringAsFixed(0)}%'
+                : CurrencyFormatter.format(rule.allocationValue ?? 0);
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    spreadRadius: 1,
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+                border: Border.all(
+                  color: rule.isActive
+                      ? AppTheme.green.withOpacity(0.5)
+                      : Colors.grey.withOpacity(0.3),
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: rule.isActive
+                          ? AppTheme.green.withOpacity(0.1)
+                          : Colors.grey.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.auto_awesome,
+                      color: rule.isActive ? AppTheme.green : Colors.grey,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          rule.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${rule.incomeSource == "all" ? "All income" : rule.incomeSource} → '
+                          '$allocationText to ${rule.targetCategory}',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                        if (rule.weeklyAllocatedAmount != null &&
+                            rule.weeklyAllocatedAmount! > 0) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'This week: ${CurrencyFormatter.format(rule.weeklyAllocatedAmount!)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.green,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatColumn(String label, double amount) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+        Text(
+          CurrencyFormatter.format(amount),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 
@@ -502,7 +966,11 @@ class VariableEarnerDashboard extends StatelessWidget {
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
     final weekEnd = weekStart.add(const Duration(days: 6));
 
-    final months = [
+    return '${weekStart.day}-${weekEnd.day} ${_getMonthName(weekStart.month)}';
+  }
+
+  String _getMonthName(int month) {
+    const months = [
       'Jan',
       'Feb',
       'Mar',
@@ -516,262 +984,21 @@ class VariableEarnerDashboard extends StatelessWidget {
       'Nov',
       'Dec',
     ];
-
-    return '${months[weekStart.month - 1]} ${weekStart.day} - ${months[weekEnd.month - 1]} ${weekEnd.day}';
+    return months[month - 1];
   }
 
-  Stream<Map<String, dynamic>> _getStatsStream() {
-    return _firebaseService.getTransactions().asyncMap((transactions) async {
-      double totalIncome = 0;
-      double totalExpenses = 0;
-      double weeklyIncome = 0;
-      double weeklyExpenses = 0;
-      double salaryIncome = 0;
-      double gigIncome = 0;
-      double totalSavings = 0;
-
-      DateTime now = DateTime.now();
-      DateTime weekStart = now.subtract(Duration(days: now.weekday - 1));
-      // Normalize to midnight
-      weekStart = DateTime(weekStart.year, weekStart.month, weekStart.day);
-
-      for (var transaction in transactions) {
-        if (transaction.type == 'income') {
-          totalIncome += transaction.amount;
-
-          if (transaction.source?.toLowerCase() == 'salary' ||
-              transaction.category.toLowerCase() == 'salary') {
-            salaryIncome += transaction.amount;
-          } else {
-            gigIncome += transaction.amount;
-          }
-
-          if (transaction.date.isAfter(weekStart)) {
-            weeklyIncome += transaction.amount;
-          }
-        } else if (transaction.type == 'expense') {
-          totalExpenses += transaction.actualExpenseAmount;
-
-          if (transaction.hasSavingsAllocation) {
-            totalSavings += transaction.savingsAllocation!;
-          }
-
-          if (transaction.date.isAfter(weekStart)) {
-            weeklyExpenses += transaction.actualExpenseAmount;
-          }
-        }
-      }
-
-      return {
-        'totalIncome': totalIncome,
-        'totalExpenses': totalExpenses,
-        'totalSavings': totalSavings,
-        'netAmount': totalIncome - totalExpenses,
-        'weeklyIncome': weeklyIncome,
-        'weeklyExpenses': weeklyExpenses,
-        'salaryIncome': salaryIncome,
-        'gigIncome': gigIncome,
-      };
-    });
-  }
-
-  Stream<Map<String, double>> _getActualSpendingStream() {
-    final now = DateTime.now();
-    final weekStartRaw = now.subtract(Duration(days: now.weekday - 1));
-    final weekStart = DateTime(
-      weekStartRaw.year,
-      weekStartRaw.month,
-      weekStartRaw.day,
-    );
-
-    return _firebaseService.getTransactions().map((transactions) {
-      final Map<String, double> categoryTotals = {};
-      for (var transaction in transactions) {
-        if (transaction.type == 'expense' &&
-            transaction.date.isAfter(weekStart)) {
-          categoryTotals[transaction.category] =
-              (categoryTotals[transaction.category] ?? 0) +
-              transaction.actualExpenseAmount;
-        }
-      }
-      return categoryTotals;
-    });
-  }
-
-  Widget _buildWeeklyBudgetCard(BudgetModel budget) {
-    final isOverBudget = budget.spent > budget.amount;
-    final icon = _getCategoryIcon(budget.category);
-
-    return Container(
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isOverBudget ? AppTheme.red : Colors.grey[300]!,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withValues(alpha: 0.1),
-            spreadRadius: 1,
-            blurRadius: 3,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(icon, style: const TextStyle(fontSize: 24)),
-              const SizedBox(width: 8),
-              Text(
-                budget.category,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          StreamBuilder<Map<String, double>>(
-            stream: _getActualSpendingStream(),
-            builder: (context, snapshot) {
-              final actualSpent =
-                  snapshot.data?[budget.category] ?? budget.spent;
-              final isActuallyOverBudget = actualSpent > budget.amount;
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    CurrencyFormatter.format(actualSpent),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: isActuallyOverBudget
-                          ? AppTheme.red
-                          : Colors.black87,
-                    ),
-                  ),
-                  Text(
-                    'of ${CurrencyFormatter.format(budget.amount)}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIncomeCard(
-    String title,
-    double amount,
-    IconData icon,
-    Color color,
-  ) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.3)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: color),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              CurrencyFormatter.format(amount),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ],
+  void _navigateToAddTransaction(String type) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AddTransactionScreen(
+          onTransactionAdded: () {
+            _loadDashboardData();
+            widget.onRefresh();
+          },
+          initialTransactionType: type,
         ),
       ),
     );
-  }
-
-  Widget _buildActionButtons(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AddTransactionScreen(
-                    onTransactionAdded: onRefresh,
-                    initialTransactionType: 'income',
-                  ),
-                ),
-              );
-            },
-            icon: const Icon(Icons.arrow_downward),
-            label: const Text('Add Income'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.green,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AddTransactionScreen(
-                    onTransactionAdded: onRefresh,
-                    initialTransactionType: 'expense',
-                  ),
-                ),
-              );
-            },
-            icon: const Icon(Icons.arrow_upward),
-            label: const Text('Add Expense'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.red,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _getCategoryIcon(String category) {
-    switch (category.toLowerCase()) {
-      case 'food':
-        return '🍔';
-      case 'transport':
-        return '🚗';
-      case 'data':
-        return '💾';
-      case 'entertainment':
-        return '🎬';
-      case 'utilities':
-        return '💡';
-      default:
-        return '📦';
-    }
   }
 }

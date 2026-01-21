@@ -44,7 +44,7 @@ class IncomeAllocationService {
       if (remainingIncome <= 0) break;
 
       // Check if rule applies to this income source
-      if (!rule.appliesToIncomeSource(transaction.category)) {
+      if (!rule.appliesToIncomeSource(transaction.source ?? '')) {
         continue;
       }
 
@@ -67,7 +67,7 @@ class IncomeAllocationService {
         await _updateRuleWeeklyAllocation(rule, allocationAmount);
 
         print(
-          'Applied rule "${rule.name}": Allocated ${allocationAmount} to ${rule.targetCategory}',
+          'Applied rule "${rule.name}": Allocated $allocationAmount to ${rule.targetCategory}',
         );
       }
     }
@@ -108,7 +108,7 @@ class IncomeAllocationService {
       final transaction = TransactionModel.fromMap(doc.data());
 
       // Check if rule applies
-      if (!rule.appliesToIncomeSource(transaction.category)) {
+      if (!rule.appliesToIncomeSource(transaction.source ?? '')) {
         continue;
       }
 
@@ -131,6 +131,85 @@ class IncomeAllocationService {
 
       print(
         'Retroactively applied rule "${rule.name}": Allocated $totalAllocated to ${rule.targetCategory}',
+      );
+    }
+  }
+
+  /// Reverse allocation for a deleted rule
+  /// Deducts the weekly allocated amount from the corresponding budget
+  Future<void> reverseAllocation(RuleModel rule) async {
+    if (rule.targetCategory == null ||
+        rule.weeklyAllocatedAmount == null ||
+        rule.weeklyAllocatedAmount! <= 0) {
+      return;
+    }
+
+    final amountToReverse = rule.weeklyAllocatedAmount!;
+    final category = rule.targetCategory!;
+
+    print(
+      'Reversing allocation for rule "${rule.name}": Deducting $amountToReverse from $category',
+    );
+
+    // Get current user to determine budget period
+    final user = await _firestore
+        .collection('users')
+        .doc(userId)
+        .get()
+        .then((doc) => UserModel.fromMap(doc.data()!));
+
+    final now = DateTime.now();
+    DateTime startDate;
+    String period;
+
+    // Determine period based on income type
+    if (user.incomeType == 'variable') {
+      // Variable -> Weekly
+      period = 'weekly';
+      startDate = _getWeekStart(now);
+    } else {
+      // Fixed or Hybrid -> Monthly
+      period = 'monthly';
+      startDate = DateTime(now.year, now.month, 1);
+    }
+
+    // Find the budget
+    final existingBudgetQuery = await _firestore
+        .collection('budgets')
+        .doc(userId)
+        .collection('userBudgets')
+        .where('category', isEqualTo: category)
+        .where('period', isEqualTo: period)
+        .where('startDate', isGreaterThanOrEqualTo: startDate.toIso8601String())
+        .limit(1)
+        .get();
+
+    if (existingBudgetQuery.docs.isNotEmpty) {
+      final existingDoc = existingBudgetQuery.docs.first;
+      final existingBudget = BudgetModel.fromMap(existingDoc.data());
+
+      // Calculate new amount (ensure it doesn't go below 0 or spent amount)
+      double newAmount = existingBudget.amount - amountToReverse;
+      if (newAmount < 0) newAmount = 0;
+
+      // Ideally we shouldn't reduce budget below what's already spent,
+      // but for allocation reversal we strictly reverse what was added.
+      // If spent > newAmount, it will just show as over budget, which is correct.
+
+      await _firestore
+          .collection('budgets')
+          .doc(userId)
+          .collection('userBudgets')
+          .doc(existingDoc.id)
+          .update({'amount': newAmount});
+
+      print('Updated $period budget for $category: -$amountToReverse');
+
+      // Send notification about reversal
+      await NotificationService.sendReminderNotification(
+        title: 'Budget Updated',
+        body:
+            'Removed ₦${amountToReverse.toStringAsFixed(2)} from $category budget due to rule deletion',
       );
     }
   }
@@ -458,5 +537,149 @@ class IncomeAllocationService {
       'sourceBreakdown': sourceBreakdown,
       'weekStart': weekStart.toIso8601String(),
     };
+  }
+
+  /// Get total income for a specific source for the current week
+  Future<double> getTotalWeeklyIncome(String source) async {
+    final weekStart = _getWeekStart(DateTime.now());
+
+    final transactionsSnapshot = await _firestore
+        .collection('transactions')
+        .doc(userId)
+        .collection('userTransactions')
+        .where('type', isEqualTo: 'income')
+        .get();
+
+    double totalIncome = 0;
+    for (var doc in transactionsSnapshot.docs) {
+      final transaction = TransactionModel.fromMap(doc.data());
+
+      // Filter in Dart
+      if (transaction.source == source &&
+          transaction.date.isAfter(
+            weekStart.subtract(const Duration(seconds: 1)),
+          )) {
+        totalIncome += transaction.amount;
+      }
+    }
+    return totalIncome;
+  }
+
+  /// Get available income for a specific source
+  /// Calculates projected usage based on rule definitions
+  Future<double> getAvailableIncomeForSource(
+    String source, {
+    String? excludeRuleId,
+  }) async {
+    final totalIncome = await getTotalWeeklyIncome(source);
+
+    // Get all active rules for this source
+    // Get all active rules
+    final rulesSnapshot = await _firestore
+        .collection('rules')
+        .doc(userId)
+        .collection('userRules')
+        .where('type', isEqualTo: 'income_allocation')
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    double usedAmount = 0;
+
+    for (var doc in rulesSnapshot.docs) {
+      final rule = RuleModel.fromMap(doc.data());
+
+      // Filter by source in Dart
+      if (rule.incomeSource != source) {
+        continue;
+      }
+
+      // Exclude rule if specified (for edit scenario)
+      if (excludeRuleId != null && rule.id == excludeRuleId) {
+        continue;
+      }
+
+      if (rule.allocationType == 'fixed') {
+        // For fixed rules, use the defined amount
+        usedAmount += rule.allocationValue ?? 0;
+      } else if (rule.allocationType == 'percentage') {
+        // For percentage rules, calculate projected amount based on total income
+        // This ensures we don't over-allocate even with mixed types
+        if (rule.allocationValue != null) {
+          usedAmount += (totalIncome * rule.allocationValue!) / 100;
+        }
+      }
+    }
+
+    return totalIncome - usedAmount;
+  }
+
+  /// Get total percentage allocated for a specific source
+  Future<double> getTotalPercentageAllocated(
+    String source, {
+    String? excludeRuleId,
+  }) async {
+    final rulesSnapshot = await _firestore
+        .collection('rules')
+        .doc(userId)
+        .collection('userRules')
+        .where('type', isEqualTo: 'income_allocation')
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    double totalPercentage = 0;
+    for (var doc in rulesSnapshot.docs) {
+      final rule = RuleModel.fromMap(doc.data());
+
+      // Filter in Dart
+      if (rule.incomeSource != source || rule.allocationType != 'percentage') {
+        continue;
+      }
+
+      // Exclude rule if specified (for edit scenario)
+      if (excludeRuleId != null && rule.id == excludeRuleId) {
+        continue;
+      }
+
+      if (rule.allocationValue != null) {
+        totalPercentage += rule.allocationValue!;
+      }
+    }
+
+    return totalPercentage;
+  }
+
+  /// Get total fixed amount allocated for a specific source
+  Future<double> getTotalFixedAllocated(
+    String source, {
+    String? excludeRuleId,
+  }) async {
+    final rulesSnapshot = await _firestore
+        .collection('rules')
+        .doc(userId)
+        .collection('userRules')
+        .where('type', isEqualTo: 'income_allocation')
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    double totalFixed = 0;
+    for (var doc in rulesSnapshot.docs) {
+      final rule = RuleModel.fromMap(doc.data());
+
+      // Filter in Dart
+      if (rule.incomeSource != source || rule.allocationType != 'fixed') {
+        continue;
+      }
+
+      // Exclude rule if specified (for edit scenario)
+      if (excludeRuleId != null && rule.id == excludeRuleId) {
+        continue;
+      }
+
+      if (rule.allocationValue != null) {
+        totalFixed += rule.allocationValue!;
+      }
+    }
+
+    return totalFixed;
   }
 }
