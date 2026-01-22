@@ -6,6 +6,7 @@ class CategoryConstants {
   static const List<String> expenseCategories = [
     'Food',
     'Transport',
+    'Rent',
     'Data',
     'Entertainment',
     'Utilities',
@@ -30,6 +31,7 @@ class CategoryConstants {
   static const Map<String, IconData> categoryIcons = {
     'Food': Icons.restaurant,
     'Transport': Icons.directions_car,
+    'Rent': Icons.home,
     'Data': Icons.wifi,
     'Entertainment': Icons.movie,
     'Utilities': Icons.electrical_services,
@@ -49,6 +51,7 @@ class CategoryConstants {
   static const Map<String, Color> categoryColors = {
     'Food': Color(0xFFFF6B6B),
     'Transport': Color(0xFF4ECDC4),
+    'Rent': Color(0xFF6C5CE7),
     'Data': Color(0xFF95E1D3),
     'Entertainment': Color(0xFFF38181),
     'Utilities': Color(0xFFAA96DA),
