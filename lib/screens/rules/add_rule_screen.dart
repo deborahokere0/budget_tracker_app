@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/firebase_service.dart';
 import '../../services/income_allocation_service.dart';
+import '../../services/conflict_resolution_service.dart';
 import '../../models/rule_model.dart';
 import '../../models/user_model.dart';
+import '../../models/conflict_model.dart';
 import '../../theme/app_theme.dart';
 import '../../constants/category_constants.dart';
 import '../../utils/currency_formatter.dart';
@@ -31,6 +33,8 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
   final _goalNameController = TextEditingController();
   final _targetAmountController = TextEditingController();
   final FirebaseService _firebaseService = FirebaseService();
+  final ConflictResolutionService _conflictService =
+      ConflictResolutionService();
 
   String _selectedCategory = CategoryConstants.expenseCategories.first;
   //double _allocationPercent = 10.0;
@@ -245,6 +249,200 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
     super.dispose();
   }
 
+  /// Check for conflicts before saving rule
+  /// Returns true if save should proceed, false if blocked by conflicts
+  Future<bool> _checkForConflicts(RuleModel ruleToCheck) async {
+    try {
+      // Get all existing rules
+      final existingRules = await _firebaseService.getRules().first;
+
+      // Check for conflicts
+      final conflicts = _conflictService.checkRuleForConflicts(
+        ruleToCheck,
+        existingRules,
+      );
+
+      if (conflicts.isEmpty) {
+        return true; // No conflicts, proceed with save
+      }
+
+      // Check if there are blocking (high severity) conflicts
+      final hasBlockingConflicts = _conflictService.hasBlockingConflicts(
+        conflicts,
+      );
+
+      // Show conflict dialog
+      if (mounted) {
+        final result = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) =>
+              _buildConflictDialog(conflicts, hasBlockingConflicts),
+        );
+
+        return result ?? false;
+      }
+
+      return false;
+    } catch (e) {
+      print('Error checking for conflicts: $e');
+      return true; // Allow save on error
+    }
+  }
+
+  /// Build the conflict warning dialog
+  Widget _buildConflictDialog(
+    List<RuleConflict> conflicts,
+    bool hasBlockingConflicts,
+  ) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(
+            hasBlockingConflicts ? Icons.error : Icons.warning,
+            color: hasBlockingConflicts ? AppTheme.red : AppTheme.orange,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            hasBlockingConflicts
+                ? 'Rule Conflict Detected'
+                : 'Potential Conflict',
+            style: const TextStyle(fontSize: 18),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (hasBlockingConflicts)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppTheme.red.withOpacity(0.3)),
+                  ),
+                  child: const Text(
+                    'This rule cannot be saved until conflicts are resolved.',
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ...conflicts.map((conflict) => _buildConflictItem(conflict)),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Go Back & Fix'),
+        ),
+        if (!hasBlockingConflicts)
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.orange),
+            child: const Text('Save Anyway'),
+          ),
+      ],
+    );
+  }
+
+  /// Build a single conflict item in the dialog
+  Widget _buildConflictItem(RuleConflict conflict) {
+    final severityColor = conflict.severity == ConflictSeverity.high
+        ? AppTheme.red
+        : conflict.severity == ConflictSeverity.medium
+        ? AppTheme.orange
+        : AppTheme.primaryBlue;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: severityColor.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: severityColor.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: severityColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  ConflictResolutionService.getSeverityLabel(conflict.severity),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  conflict.title,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            conflict.description,
+            style: TextStyle(color: Colors.grey[700], fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.lightbulb_outline,
+                  size: 16,
+                  color: AppTheme.green,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    conflict.suggestion,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.green,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (conflict.conflictingRuleNames.length > 1) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Conflicting rules: ${conflict.conflictingRuleNames.join(", ")}',
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Future<void> _saveRule() async {
     if (_formKey.currentState!.validate()) {
       // Validate monthly income for fixed income users
@@ -398,6 +596,15 @@ class _AddRuleScreenState extends State<AddRuleScreen> {
         goalName: goalName,
         isPiggyBank: isPiggyBank,
       );
+
+      // Check for conflicts before saving
+      final canProceed = await _checkForConflicts(rule);
+      if (!canProceed) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
 
       try {
         if (widget.existingRule != null) {
