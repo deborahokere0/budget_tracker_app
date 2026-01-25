@@ -1,7 +1,7 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <!--
+  <head>
+    <!--
     If you are serving your web app in a path other than the root, change the
     href value below to reflect the base path you are serving from.
 
@@ -14,49 +14,56 @@
     This is a placeholder for base href that will be replaced by the value of
     the `--base-href` argument provided to `flutter build`.
   -->
-  <base href="$FLUTTER_BASE_HREF">
+    <base href="$FLUTTER_BASE_HREF" />
 
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+    <meta charset="UTF-8" />
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible" />
+    <meta
+      name="description"
+      content="Dee's Budget App - A mobile financial management application for Nigerian users with income-type personalized budgeting for Fixed, Variable, and Hybrid earners."
+    />
+    <meta
+      name="keywords"
+      content="budget tracker, expense tracking, finance, Nigeria, budgeting app"
+    />
 
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="budget_tracker_app">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+    <!-- iOS meta tags & icons -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="Dee's Budget App" />
+    <link rel="apple-touch-icon" href="icons/Icon-192.png" />
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="favicon.png" />
 
-  <title>budget_tracker_app</title>
-  <link rel="manifest" href="manifest.json">
-</head>
-<body>
-  <script src="flutter_bootstrap.js" async></script>
-  <script type="module">
-    // Import the functions you need from the SDKs you need
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-analytics.js";
-    // TODO: Add SDKs for Firebase products that you want to use
-    // https://firebase.google.com/docs/web/setup#available-libraries
+    <title>Dee's Budget App</title>
+    <link rel="manifest" href="manifest.json" />
+  </head>
+  <body>
+    <script src="flutter_bootstrap.js" async></script>
+    <script type="module">
+      // Import the functions you need from the SDKs you need
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
+      import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-analytics.js";
+      // TODO: Add SDKs for Firebase products that you want to use
+      // https://firebase.google.com/docs/web/setup#available-libraries
 
-    // Your web app's Firebase configuration
-    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-    const firebaseConfig = {
-      apiKey: "AIzaSyAYYE_WeC0bmJxceHMD3xDDvPBSDIPL47g",
-      authDomain: "dee-s-budget-app.firebaseapp.com",
-      databaseURL: "https://dee-s-budget-app-default-rtdb.firebaseio.com",
-      projectId: "dee-s-budget-app",
-      storageBucket: "dee-s-budget-app.firebasestorage.app",
-      messagingSenderId: "339793866787",
-      appId: "1:339793866787:web:62babc6eb6c152cec58196",
-      measurementId: "G-CT8X8D06MG"
-    };
+      // Your web app's Firebase configuration
+      // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+      const firebaseConfig = {
+        apiKey: "AIzaSyAYYE_WeC0bmJxceHMD3xDDvPBSDIPL47g",
+        authDomain: "dee-s-budget-app.firebaseapp.com",
+        databaseURL: "https://dee-s-budget-app-default-rtdb.firebaseio.com",
+        projectId: "dee-s-budget-app",
+        storageBucket: "dee-s-budget-app.firebasestorage.app",
+        messagingSenderId: "339793866787",
+        appId: "1:339793866787:web:62babc6eb6c152cec58196",
+        measurementId: "G-CT8X8D06MG",
+      };
 
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
-  </script>
-</body>
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+      const analytics = getAnalytics(app);
+    </script>
+  </body>
 </html>
