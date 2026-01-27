@@ -31,12 +31,14 @@ class HybridEarnerDashboard extends StatelessWidget {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final stats = snapshot.data ?? {
-              'totalBalance': 0.0,
-              'salaryIncome': 0.0,
-              'gigIncome': 0.0,
-              'totalSavings': 0.0,
-            };
+            final stats =
+                snapshot.data ??
+                {
+                  'totalBalance': 0.0,
+                  'salaryIncome': 0.0,
+                  'gigIncome': 0.0,
+                  'totalSavings': 0.0,
+                };
 
             final totalBalance = stats['totalBalance'] ?? 0.0;
             final salaryIncome = stats['salaryIncome'] ?? 0.0;
@@ -129,7 +131,8 @@ class HybridEarnerDashboard extends StatelessWidget {
                                 children: [
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Salary',
@@ -139,7 +142,9 @@ class HybridEarnerDashboard extends StatelessWidget {
                                           ),
                                         ),
                                         Text(
-                                          CurrencyFormatter.format(salaryIncome),
+                                          CurrencyFormatter.format(
+                                            salaryIncome,
+                                          ),
                                           style: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 18,
@@ -151,7 +156,8 @@ class HybridEarnerDashboard extends StatelessWidget {
                                   ),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         const Text(
                                           'Gigs',
@@ -187,9 +193,7 @@ class HybridEarnerDashboard extends StatelessWidget {
 
                   // Content Area
                   Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                    ),
+                    decoration: const BoxDecoration(color: Colors.white),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Column(
@@ -202,8 +206,18 @@ class HybridEarnerDashboard extends StatelessWidget {
                                   'Salary Budget',
                                   const Color(0xFFB8E6D5),
                                   [
-                                    {'icon': '🏠', 'name': 'Rent', 'spent': 50000, 'budget': 50000},
-                                    {'icon': '🛒', 'name': 'Groceries', 'spent': 52000, 'budget': 50000},
+                                    {
+                                      'icon': '🏠',
+                                      'name': 'Rent',
+                                      'spent': 50000,
+                                      'budget': 50000,
+                                    },
+                                    {
+                                      'icon': '🛒',
+                                      'name': 'Groceries',
+                                      'spent': 52000,
+                                      'budget': 50000,
+                                    },
                                   ],
                                 ),
                               ),
@@ -213,8 +227,18 @@ class HybridEarnerDashboard extends StatelessWidget {
                                   'Gigs Budget',
                                   const Color(0xFFD4C5F9),
                                   [
-                                    {'icon': '🎭', 'name': 'Recreation', 'spent': 38000, 'budget': 35000},
-                                    {'icon': '📺', 'name': 'Cable TV', 'spent': 15000, 'budget': 15000},
+                                    {
+                                      'icon': '🎭',
+                                      'name': 'Recreation',
+                                      'spent': 38000,
+                                      'budget': 35000,
+                                    },
+                                    {
+                                      'icon': '📺',
+                                      'name': 'Cable TV',
+                                      'spent': 15000,
+                                      'budget': 15000,
+                                    },
                                   ],
                                 ),
                               ),
@@ -253,7 +277,8 @@ class HybridEarnerDashboard extends StatelessWidget {
                               children: [
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Total Savings',
@@ -282,11 +307,12 @@ class HybridEarnerDashboard extends StatelessWidget {
                                             ),
                                             decoration: BoxDecoration(
                                               color: AppTheme.green,
-                                              borderRadius: BorderRadius.circular(12),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
                                             ),
                                             child: Text(
                                               salaryIncome + gigIncome > 0
-                                              ? '${((salaryIncome / (salaryIncome + gigIncome)) * 100).toStringAsFixed(0)}%'
+                                                  ? '${((salaryIncome / (salaryIncome + gigIncome)) * 100).toStringAsFixed(0)}%'
                                                   : '0%',
                                               style: const TextStyle(
                                                 color: Colors.white,
@@ -302,10 +328,13 @@ class HybridEarnerDashboard extends StatelessWidget {
                                             ),
                                             decoration: BoxDecoration(
                                               color: Colors.purple[300],
-                                              borderRadius: BorderRadius.circular(12),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
                                             ),
                                             child: Text(
-                                              '${((gigIncome / (salaryIncome + gigIncome)) * 100).toStringAsFixed(0)}%',
+                                              salaryIncome + gigIncome > 0
+                                                  ? '${((gigIncome / (salaryIncome + gigIncome)) * 100).toStringAsFixed(0)}%'
+                                                  : '0%',
                                               style: const TextStyle(
                                                 color: Colors.white,
                                                 fontWeight: FontWeight.bold,
@@ -319,7 +348,9 @@ class HybridEarnerDashboard extends StatelessWidget {
                                         onPressed: () {},
                                         child: const Text(
                                           'View More >',
-                                          style: TextStyle(color: Colors.white70),
+                                          style: TextStyle(
+                                            color: Colors.white70,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -344,7 +375,7 @@ class HybridEarnerDashboard extends StatelessWidget {
 
                           const SizedBox(height: 20),
 
-                          _buildActionButtons(context, onRefresh)
+                          _buildActionButtons(context, onRefresh),
                         ],
                       ),
                     ),
@@ -397,10 +428,10 @@ class HybridEarnerDashboard extends StatelessWidget {
   }
 
   Widget _buildBudgetCard(
-      String title,
-      Color bgColor,
-      List<Map<String, dynamic>> items,
-      ) {
+    String title,
+    Color bgColor,
+    List<Map<String, dynamic>> items,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -430,10 +461,7 @@ class HybridEarnerDashboard extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 12),
               child: Row(
                 children: [
-                  Text(
-                    item['icon'],
-                    style: const TextStyle(fontSize: 20),
-                  ),
+                  Text(item['icon'], style: const TextStyle(fontSize: 20)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(

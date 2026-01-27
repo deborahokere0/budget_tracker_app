@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Project Defense Guide</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Project Defense Guide</h1>
+</header>
+<h1 id="dees-budget-app---project-defense-guide">🎓 Dee’s Budget App -
+Project Defense Guide</h1>
+<p><strong>Title:</strong> Design and Implementation of a Mobile Budget
+&amp; Expense Tracking App<br />
+<strong>Student:</strong> Deborah Chibuzo Okere<br />
+<strong>Matric Number:</strong> NOU213070643<br />
+<strong>Institution:</strong> National Open University of Nigeria<br />
+<strong>Academic Session:</strong> 2024/2025</p>
+<hr />
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol type="1">
+<li><a href="#-project-overview">Project Overview</a></li>
+<li><a href="#-technology-stack">Technology Stack</a></li>
+<li><a href="#-folder-structure">Folder Structure</a></li>
+<li><a href="#-core-application-architecture">Core Application
+Architecture</a></li>
+<li><a href="#-data-models">Data Models</a></li>
+<li><a href="#-services-layer">Services Layer</a></li>
+<li><a href="#-user-interface-screens">User Interface Screens</a></li>
+<li><a href="#-firebase-database-schema">Firebase Database
+Schema</a></li>
+<li><a href="#-key-innovations">Key Innovations</a></li>
+<li><a href="#-application-flow">Application Flow</a></li>
+<li><a href="#-dependencies">Dependencies</a></li>
+<li><a href="#-defense-tips">Defense Tips</a></li>
+</ol>
+<hr />
+<h2 id="project-overview">📱 Project Overview</h2>
+<p><strong>Dee’s Budget App</strong> is a mobile financial management
+application designed specifically for Nigerian users with diverse income
+structures. The application addresses the critical gap in existing
+Personal Finance Management (PFM) tools by providing <strong>income-type
+personalized</strong> budgeting experiences.</p>
+<h3 id="target-users">Target Users</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 32%" />
+<col style="width: 42%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Income Type</th>
+<th>Description</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Fixed Earners</strong></td>
+<td>Stable monthly income</td>
+<td>Salaried workers, civil servants</td>
+</tr>
+<tr class="even">
+<td><strong>Variable Earners</strong></td>
+<td>Irregular income patterns</td>
+<td>Freelancers, gig workers, traders</td>
+</tr>
+<tr class="odd">
+<td><strong>Hybrid Earners</strong></td>
+<td>Combination of both</td>
+<td>Employees with side businesses</td>
+</tr>
+</tbody>
+</table>
+<h3 id="key-problem-solved">Key Problem Solved</h3>
+<p>Traditional budgeting apps assume stable income patterns, which fails
+40%+ of Nigerians in the gig/informal economy. This app provides
+<strong>personalized dashboards</strong> tailored to each earning
+pattern.</p>
+<hr />
+<h2 id="technology-stack">🛠️ Technology Stack</h2>
+<h3 id="frontend-technologies">Frontend Technologies</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Technology</th>
+<th>Version</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Flutter</strong></td>
+<td>3.9.0</td>
+<td>Cross-platform UI framework</td>
+</tr>
+<tr class="even">
+<td><strong>Dart</strong></td>
+<td>^3.9.0</td>
+<td>Programming language</td>
+</tr>
+<tr class="odd">
+<td><strong>Material Design</strong></td>
+<td>Built-in</td>
+<td>Google’s UI design system</td>
+</tr>
+</tbody>
+</table>
+<h3 id="backend-technologies-firebase">Backend Technologies
+(Firebase)</h3>
+<table>
+<colgroup>
+<col style="width: 38%" />
+<col style="width: 61%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Service</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Firebase Authentication</strong></td>
+<td>User sign-in/sign-up (Email &amp; Google OAuth)</td>
+</tr>
+<tr class="even">
+<td><strong>Cloud Firestore</strong></td>
+<td>NoSQL real-time database for all app data</td>
+</tr>
+<tr class="odd">
+<td><strong>Firebase Messaging</strong></td>
+<td>Push notifications</td>
+</tr>
+<tr class="even">
+<td><strong>Firebase Hosting</strong></td>
+<td>Web app deployment</td>
+</tr>
+</tbody>
+</table>
+<h3 id="development-tools">Development Tools</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Tool</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Android Studio / VS Code</strong></td>
+<td>IDE for development</td>
+</tr>
+<tr class="even">
+<td><strong>Git</strong></td>
+<td>Version control</td>
+</tr>
+<tr class="odd">
+<td><strong>Figma</strong></td>
+<td>UI/UX design prototyping</td>
+</tr>
+<tr class="even">
+<td><strong>Gradle</strong></td>
+<td>Android build system</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="folder-structure">📁 Folder Structure</h2>
+<h3 id="root-level">Root Level</h3>
+<pre><code>budget_tracker_app/
+├── android/              # Android-specific configuration
+├── ios/                  # iOS-specific configuration
+├── web/                  # Web platform files
+├── lib/                  # Main Dart source code
+├── test/                 # Unit and widget tests
+├── assets/               # Images, fonts, static files
+├── pubspec.yaml          # Dependencies &amp; project config
+├── firebase.json         # Firebase hosting configuration
+└── README.md             # Project documentation</code></pre>
+<h3 id="root-configuration-files">Root Configuration Files</h3>
+<table>
+<colgroup>
+<col style="width: 26%" />
+<col style="width: 73%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>pubspec.yaml</code></td>
+<td>Defines app dependencies, version (1.0.0+1), and Flutter
+settings</td>
+</tr>
+<tr class="even">
+<td><code>firebase.json</code></td>
+<td>Firebase Hosting configuration, project ID:
+<code>dee-s-budget-app</code></td>
+</tr>
+<tr class="odd">
+<td><code>analysis_options.yaml</code></td>
+<td>Dart/Flutter code linting rules</td>
+</tr>
+<tr class="even">
+<td><code>.firebaserc</code></td>
+<td>Links local project to Firebase project</td>
+</tr>
+</tbody>
+</table>
+<h3 id="platform-folders">Platform Folders</h3>
+<table>
+<colgroup>
+<col style="width: 8%" />
+<col style="width: 52%" />
+<col style="width: 39%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Folder</th>
+<th>Key Files</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>android/</code></td>
+<td><code>google-services.json</code>, <code>build.gradle</code>,
+<code>AndroidManifest.xml</code></td>
+<td>Android build configuration and Firebase setup</td>
+</tr>
+<tr class="even">
+<td><code>ios/</code></td>
+<td><code>Info.plist</code>, <code>GoogleService-Info.plist</code></td>
+<td>iOS build configuration</td>
+</tr>
+<tr class="odd">
+<td><code>web/</code></td>
+<td><code>index.html</code>, <code>manifest.json</code></td>
+<td>Web entry point and PWA configuration</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="core-application-architecture">🏗️ Core Application
+Architecture</h2>
+<h3 id="lib-directory-structure"><code>lib/</code> Directory
+Structure</h3>
+<pre><code>lib/
+├── main.dart                    # App entry point
+├── firebase_options.dart        # Firebase credentials (auto-generated)
+├── constants/                   # App-wide constants
+├── models/                      # Data structures (5 files)
+├── screens/                     # UI components (15+ files)
+├── services/                    # Business logic (5 files)
+├── theme/                       # Visual styling
+└── utils/                       # Utility functions</code></pre>
+<h3 id="entry-point-main.dart">Entry Point (<code>main.dart</code>)</h3>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode dart"><code class="sourceCode dart"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="dt">void</span> main() <span class="at">async</span> {</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  WidgetsFlutterBinding<span class="op">.</span>ensureInitialized();</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">await</span> Firebase<span class="op">.</span>initializeApp(options<span class="op">:</span> DefaultFirebaseOptions<span class="op">.</span>currentPlatform);</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">await</span> NotificationService<span class="op">.</span>initialize();</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  runApp(<span class="at">const</span> BudgetTrackerApp());</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Key Responsibilities:</strong></p>
+<ol type="1">
+<li>Initialize Firebase connection</li>
+<li>Setup notification service</li>
+<li>Configure app routes (<code>/</code>, <code>/login</code>,
+<code>/signup</code>, <code>/home</code>, <code>/rules</code>)</li>
+<li>Listen for authentication state changes</li>
+<li>Setup periodic alert checks (every 30 minutes)</li>
+</ol>
+<hr />
+<h2 id="data-models">📊 Data Models</h2>
+<h3 id="location-libmodels">Location: <code>lib/models/</code></h3>
+<h3 id="usermodel-user_model.dart">1. UserModel
+(<code>user_model.dart</code>)</h3>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode dart"><code class="sourceCode dart"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> UserModel {</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> <span class="dt">String</span> uid;</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> <span class="dt">String</span> email;</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> <span class="dt">String</span> fullName;</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> <span class="dt">String</span> username;</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> <span class="dt">String</span> incomeType;     <span class="co">// &#39;fixed&#39;, &#39;variable&#39;, &#39;hybrid&#39;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> DateTime createdAt;</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> <span class="dt">double</span><span class="op">?</span> monthlyIncome;</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> <span class="dt">double</span><span class="op">?</span> targetSavings;</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Purpose:</strong> Stores user profile information including
+the crucial <code>incomeType</code> field that determines which
+dashboard to display.</p>
+<h3 id="transactionmodel-transaction_model.dart">2. TransactionModel
+(<code>transaction_model.dart</code>)</h3>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode dart"><code class="sourceCode dart"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TransactionModel {</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> <span class="dt">String</span> id;</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> <span class="dt">String</span> type;           <span class="co">// &#39;income&#39; or &#39;expense&#39;</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> <span class="dt">String</span> category;       <span class="co">// e.g., &#39;Food&#39;, &#39;Transport&#39;, &#39;Salary&#39;</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> <span class="dt">double</span> amount;</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> <span class="dt">String</span> description;</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> DateTime date;</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> <span class="dt">String</span><span class="op">?</span> source;        <span class="co">// Income source for variable earners</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">final</span> <span class="dt">double</span><span class="op">?</span> savingsAllocation;  <span class="co">// Amount auto-allocated to savings</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Purpose:</strong> Records all financial transactions with
+support for savings allocation tracking.</p>
+<h3 id="budgetmodel-budget_model.dart">3. BudgetModel
+(<code>budget_model.dart</code>)</h3>
+<div class="sourceCode" id="cb6"><pre
+class="sourceCode dart"><code class="sourceCode dart"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> BudgetModel {</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">String</span> id;</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">String</span> category;</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">double</span> amount;              <span class="co">// Budget limit</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">double</span> spent;               <span class="co">// Current spending</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">String</span> period;              <span class="co">// &#39;weekly&#39; or &#39;monthly&#39;</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  DateTime startDate;</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>  DateTime endDate;</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>  <span class="dt">bool</span> isAutoCreated;         <span class="co">// Created by allocation rule?</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Computed Properties:</strong></p>
+<ul>
+<li><code>remaining</code> → <code>amount - spent</code></li>
+<li><code>percentSpent</code> → <code>(spent / amount * 100)</code></li>
+</ul>
+<h3 id="rulemodel-rule_model.dart">4. RuleModel
+(<code>rule_model.dart</code>)</h3>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode dart"><code class="sourceCode dart"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RuleModel {</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">String</span> id;</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="dt">String</span> name;</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="dt">String</span> type;                <span class="co">// &#39;allocation&#39;, &#39;savings&#39;, &#39;alert&#39;, &#39;income_allocation&#39;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Map</span><span class="op">&lt;</span><span class="dt">String</span><span class="op">,</span> <span class="at">dynamic</span><span class="op">&gt;</span> conditions;</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  <span class="dt">Map</span><span class="op">&lt;</span><span class="dt">String</span><span class="op">,</span> <span class="at">dynamic</span><span class="op">&gt;</span> actions;</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  <span class="dt">int</span> priority;               <span class="co">// 1-5, higher = processed first</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="dt">bool</span> isActive;</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Income allocation fields</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>  <span class="dt">String</span><span class="op">?</span> incomeSource;       <span class="co">// &#39;all&#39;, &#39;Gig Work&#39;, &#39;Gift&#39;, etc.</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>  <span class="dt">String</span><span class="op">?</span> allocationType;     <span class="co">// &#39;percentage&#39; or &#39;fixed&#39;</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>  <span class="dt">double</span><span class="op">?</span> allocationValue;</span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>  <span class="dt">String</span><span class="op">?</span> targetCategory;</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Purpose:</strong> Powers the rule engine for automated fund
+allocation and alerts.</p>
+<h3 id="conflictmodel-conflict_model.dart">5. ConflictModel
+(<code>conflict_model.dart</code>)</h3>
+<p><strong>Purpose:</strong> Detects and manages conflicts between rules
+(e.g., two rules allocating 60% each = 120% conflict).</p>
+<hr />
+<h2 id="services-layer">⚙️ Services Layer</h2>
+<h3 id="location-libservices">Location: <code>lib/services/</code></h3>
+<h3 id="firebaseservice-firebase_service.dart---1722-lines">1.
+FirebaseService (<code>firebase_service.dart</code>) - 1,722 lines</h3>
+<p><strong>The core service handling ALL Firebase
+operations:</strong></p>
+<table>
+<colgroup>
+<col style="width: 21%" />
+<col style="width: 78%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Category</th>
+<th>Methods</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Authentication</strong></td>
+<td><code>signUp()</code>, <code>signIn()</code>,
+<code>signOut()</code></td>
+</tr>
+<tr class="even">
+<td><strong>User Profile</strong></td>
+<td><code>getUserProfile()</code>, <code>updateUserProfile()</code></td>
+</tr>
+<tr class="odd">
+<td><strong>Transactions</strong></td>
+<td><code>addTransaction()</code>, <code>getTransactions()</code>,
+<code>deleteTransaction()</code></td>
+</tr>
+<tr class="even">
+<td><strong>Budgets</strong></td>
+<td><code>addBudget()</code>, <code>getBudgets()</code>,
+<code>updateBudget()</code>, <code>deleteBudget()</code></td>
+</tr>
+<tr class="odd">
+<td><strong>Rules</strong></td>
+<td><code>addRule()</code>, <code>getRules()</code>,
+<code>updateRule()</code>, <code>deleteRule()</code></td>
+</tr>
+<tr class="even">
+<td><strong>Reset Logic</strong></td>
+<td><code>checkAndPerformMonthlyReset()</code>,
+<code>resetWeeklyBudgets()</code></td>
+</tr>
+<tr class="odd">
+<td><strong>Analytics</strong></td>
+<td><code>getSpendingTrends()</code>,
+<code>getArchivedBudgets()</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Smart Features:</strong></p>
+<ul>
+<li>Auto-archives budget data monthly for trend analysis</li>
+<li>Triggers allocation rules when income is added</li>
+<li>Updates budget spending when expenses are logged</li>
+</ul>
+<h3 id="incomeallocationservice-income_allocation_service.dart">2.
+IncomeAllocationService
+(<code>income_allocation_service.dart</code>)</h3>
+<p><strong>Purpose:</strong> Automatically allocates income to budget
+categories based on user-defined rules.</p>
+<p><strong>Example Flow:</strong></p>
+<ol type="1">
+<li>User receives ₦100,000 salary</li>
+<li>Rule: “Allocate 20% to Savings” triggers</li>
+<li>₦20,000 automatically added to Savings budget</li>
+</ol>
+<h3 id="alertservice-alert_service.dart">3. AlertService
+(<code>alert_service.dart</code>)</h3>
+<p><strong>Manages smart notifications:</strong></p>
+<ul>
+<li>Budget overspending alerts (e.g., “Food budget at 90%!”)</li>
+<li>Salary alerts for fixed earners</li>
+<li>Runway warnings for variable earners (days until funds
+depleted)</li>
+<li>Low balance warnings</li>
+</ul>
+<h3 id="notificationservice-notification_service.dart">4.
+NotificationService (<code>notification_service.dart</code>)</h3>
+<p><strong>Purpose:</strong> Handles local push notifications using
+<code>flutter_local_notifications</code> package.</p>
+<h3 id="conflictresolutionservice-conflict_resolution_service.dart">5.
+ConflictResolutionService
+(<code>conflict_resolution_service.dart</code>)</h3>
+<p><strong>Detects rule conflicts:</strong></p>
+<ul>
+<li>Duplicate category rules</li>
+<li>Over-allocation (rules allocating &gt;100% of income)</li>
+<li>Priority conflicts</li>
+</ul>
+<hr />
+<h2 id="user-interface-screens">🖥️ User Interface Screens</h2>
+<h3 id="location-libscreens">Location: <code>lib/screens/</code></h3>
+<h3 id="authentication-flow-screensauth">Authentication Flow
+(<code>screens/auth/</code>)</h3>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 28%" />
+<col style="width: 61%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Screen</th>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Splash</td>
+<td><code>splash_screen.dart</code></td>
+<td>App loading with branding</td>
+</tr>
+<tr class="even">
+<td>Login</td>
+<td><code>login_screen.dart</code></td>
+<td>Email/password authentication</td>
+</tr>
+<tr class="odd">
+<td>Sign Up</td>
+<td><code>signup_screen.dart</code></td>
+<td>Registration with <strong>income type selection</strong></td>
+</tr>
+</tbody>
+</table>
+<h3 id="home-dashboard">Home &amp; Dashboard</h3>
+<table>
+<colgroup>
+<col style="width: 8%" />
+<col style="width: 26%" />
+<col style="width: 64%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Screen</th>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Home</td>
+<td><code>home_screen.dart</code></td>
+<td>Navigation hub, loads appropriate dashboard</td>
+</tr>
+</tbody>
+</table>
+<h3 id="personalized-dashboards-screenswidgets">Personalized Dashboards
+(<code>screens/widgets/</code>)</h3>
+<table>
+<colgroup>
+<col style="width: 15%" />
+<col style="width: 26%" />
+<col style="width: 57%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Dashboard</th>
+<th>File</th>
+<th>Features</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Fixed Earner</strong></td>
+<td><code>fixed_earner_dashboard.dart</code></td>
+<td>Monthly budget tracking, payday countdown, safe-to-spend
+calculation</td>
+</tr>
+<tr class="even">
+<td><strong>Variable Earner</strong></td>
+<td><code>variable_earner_dashboard.dart</code></td>
+<td>Weekly tracking, <strong>runway calculator</strong>, income
+volatility alerts</td>
+</tr>
+<tr class="odd">
+<td><strong>Hybrid Earner</strong></td>
+<td><code>hybrid_earner_dashboard.dart</code></td>
+<td>Dual-stream tracking, cross-funding journal</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Supporting Widgets:</strong></p>
+<ul>
+<li><code>budget_tracker_screen.dart</code> - Visual budget progress
+bars</li>
+<li><code>enhanced_alert_banner.dart</code> - Smart alert display</li>
+<li><code>monthly_reset_manager.dart</code> - Handles period resets</li>
+</ul>
+<h3 id="transaction-management-screenstransactions">Transaction
+Management (<code>screens/transactions/</code>)</h3>
+<table>
+<colgroup>
+<col style="width: 15%" />
+<col style="width: 29%" />
+<col style="width: 55%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Screen</th>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Add Transaction</td>
+<td><code>add_transaction_screen.dart</code></td>
+<td>Form with categories, amounts, optional savings allocation</td>
+</tr>
+<tr class="even">
+<td>Transaction List</td>
+<td><code>transactions_list_screen.dart</code></td>
+<td>Chronological history with filters</td>
+</tr>
+</tbody>
+</table>
+<h3 id="rules-engine-screensrules">Rules Engine
+(<code>screens/rules/</code>)</h3>
+<table>
+<colgroup>
+<col style="width: 13%" />
+<col style="width: 29%" />
+<col style="width: 56%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Screen</th>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Rules List</td>
+<td><code>rules_screen.dart</code></td>
+<td>View/manage automation rules</td>
+</tr>
+<tr class="even">
+<td>Add Rule</td>
+<td><code>add_rule_screen.dart</code></td>
+<td>Create allocation, savings, or alert rules</td>
+</tr>
+</tbody>
+</table>
+<h3 id="utilities">Utilities</h3>
+<table>
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 36%" />
+<col style="width: 47%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Folder</th>
+<th>Files</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>lib/utils/</code></td>
+<td><code>currency_formatter.dart</code></td>
+<td>Formats with <strong>Nigerian Naira (₦)</strong></td>
+</tr>
+<tr class="even">
+<td></td>
+<td><code>data_validator.dart</code></td>
+<td>Input validation</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td><code>financial_calculator.dart</code></td>
+<td>Runway, percentage calculations</td>
+</tr>
+<tr class="even">
+<td><code>lib/theme/</code></td>
+<td><code>app_theme.dart</code></td>
+<td>Color palette, button styles</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="firebase-database-schema">🔥 Firebase Database Schema</h2>
+<pre><code>Firestore Database Structure
+============================
+
+users/{userId}
+├── uid: string
+├── email: string
+├── fullName: string
+├── username: string
+├── incomeType: &quot;fixed&quot; | &quot;variable&quot; | &quot;hybrid&quot;
+├── monthlyIncome: number
+├── targetSavings: number
+├── createdAt: timestamp
+│
+├── userTransactions/{transactionId}
+│   ├── type: &quot;income&quot; | &quot;expense&quot;
+│   ├── category: string
+│   ├── amount: number
+│   ├── description: string
+│   ├── date: timestamp
+│   ├── source: string (optional)
+│   └── savingsAllocation: number (optional)
+│
+├── userBudgets/{budgetId}
+│   ├── category: string
+│   ├── amount: number
+│   ├── spent: number
+│   ├── period: &quot;weekly&quot; | &quot;monthly&quot;
+│   ├── startDate: timestamp
+│   └── endDate: timestamp
+│
+├── userRules/{ruleId}
+│   ├── name: string
+│   ├── type: &quot;allocation&quot; | &quot;savings&quot; | &quot;alert&quot;
+│   ├── conditions: map
+│   ├── actions: map
+│   ├── priority: number (1-5)
+│   ├── isActive: boolean
+│   └── [allocation-specific fields]
+│
+└── archivedBudgets/{year-month}
+    └── [historical budget data for analytics]</code></pre>
+<h3 id="security-rules">Security Rules</h3>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>rules_version <span class="op">=</span> <span class="st">&#39;2&#39;</span><span class="op">;</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>service cloud<span class="op">.</span><span class="at">firestore</span> {</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  match <span class="op">/</span>databases<span class="op">/</span>{database}<span class="ss">/documents {</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="ss">    match /users/{userId} {</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="ss">      // Only authenticated users can access their own data</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="ss">      allow read, write: if request.auth != null &amp;&amp; request.auth.uid == userId;</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="ss">      match /userTransactions/{transactionId} {</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="ss">        allow read, write: if request.auth != null &amp;&amp; request.auth.uid == userId;</span></span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="ss">      }</span></span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="ss">      match /userBudgets/{budgetId} {</span></span>
+<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="ss">        allow read, write: if request.auth != null &amp;&amp; request.auth.uid == userId;</span></span>
+<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="ss">      }</span></span>
+<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a><span class="ss">      match /userRules/{ruleId} {</span></span>
+<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a><span class="ss">        allow read, write: if request.auth != null &amp;&amp; request.auth.uid == userId;</span></span>
+<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="ss">      }</span></span>
+<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a><span class="ss">    }</span></span>
+<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a><span class="ss">  }</span></span>
+<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a><span class="ss">}</span></span></code></pre></div>
+<hr />
+<h2 id="key-innovations">🌟 Key Innovations</h2>
+<h3 id="income-type-personalization">1. Income-Type Personalization</h3>
+<p>Unlike generic budgeting apps, this app provides <strong>three
+distinct user experiences</strong>:</p>
+<table>
+<colgroup>
+<col style="width: 17%" />
+<col style="width: 23%" />
+<col style="width: 58%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Income Type</th>
+<th>Dashboard Cycle</th>
+<th>Unique Features</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Fixed</td>
+<td>Monthly</td>
+<td>Payday countdown, safe-to-spend</td>
+</tr>
+<tr class="even">
+<td>Variable</td>
+<td>Weekly</td>
+<td><strong>Runway calculator</strong> (days until ₦0)</td>
+</tr>
+<tr class="odd">
+<td>Hybrid</td>
+<td>Both</td>
+<td>Dual-stream tracking, cross-funding</td>
+</tr>
+</tbody>
+</table>
+<h3 id="rule-engine-automation">2. Rule Engine (Automation)</h3>
+<p>Users can create intelligent rules:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Rule Type</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Allocation</td>
+<td>“Allocate 20% of all gig income to Savings”</td>
+</tr>
+<tr class="even">
+<td>Alert</td>
+<td>“Notify when Food budget reaches 80%”</td>
+</tr>
+<tr class="odd">
+<td>Savings</td>
+<td>“Auto-save ₦5,000 from every salary”</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Features:</strong></p>
+<ul>
+<li>Priority-based execution (1-5)</li>
+<li>Conflict detection</li>
+<li>Income source filtering</li>
+</ul>
+<h3 id="context-aware-design">3. Context-Aware Design</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 74%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Feature</th>
+<th>Nigerian Context</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Cash-first</strong></td>
+<td>Supports manual entry (Nigeria’s cash-dominant economy)</td>
+</tr>
+<tr class="even">
+<td><strong>Naira (₦)</strong></td>
+<td>Default currency formatting</td>
+</tr>
+<tr class="odd">
+<td><strong>Offline-capable</strong></td>
+<td>Works with intermittent connectivity</td>
+</tr>
+<tr class="even">
+<td><strong>Flexible income</strong></td>
+<td>Accommodates irregular payments</td>
+</tr>
+</tbody>
+</table>
+<h3 id="smart-budget-management">4. Smart Budget Management</h3>
+<ul>
+<li><strong>Auto-reset</strong>: Monthly/weekly based on income
+type</li>
+<li><strong>Archiving</strong>: Historical data preserved for trend
+analysis</li>
+<li><strong>Conflict detection</strong>: Prevents over-allocation
+errors</li>
+</ul>
+<hr />
+<h2 id="application-flow">🔄 Application Flow</h2>
+<pre><code>┌──────────────────────────────────────────────────────────────┐
+│                        APP LAUNCH                             │
+└─────────────────────────────┬────────────────────────────────┘
+                              ▼
+                    ┌─────────────────┐
+                    │  Firebase Init   │
+                    └────────┬────────┘
+                              ▼
+                    ┌─────────────────┐
+                    │ Authenticated?  │
+                    └────────┬────────┘
+                  ┌──────────┴──────────┐
+                  ▼                      ▼
+        ┌─────────────────┐    ┌─────────────────┐
+        │   Login Screen  │    │   Home Screen   │
+        └────────┬────────┘    └────────┬────────┘
+                  │                      │
+                  └──────────┬──────────┘
+                              ▼
+                    ┌─────────────────┐
+                    │ Get Income Type │
+                    └────────┬────────┘
+            ┌────────────────┼────────────────┐
+            ▼                ▼                ▼
+    ┌───────────┐    ┌───────────┐    ┌───────────┐
+    │   Fixed   │    │  Variable │    │  Hybrid   │
+    │ Dashboard │    │ Dashboard │    │ Dashboard │
+    └─────┬─────┘    └─────┬─────┘    └─────┬─────┘
+          │                │                │
+          └────────────────┼────────────────┘
+                           ▼
+              ┌────────────────────────┐
+              │    User Actions:       │
+              │ • Add Transaction      │
+              │ • Create Budget        │
+              │ • Setup Rules          │
+              │ • View Reports         │
+              └───────────┬────────────┘
+                          ▼
+              ┌────────────────────────┐
+              │   Firebase Sync &amp;      │
+              │   Rule Processing      │
+              └───────────┬────────────┘
+                          ▼
+              ┌────────────────────────┐
+              │   Alerts Triggered?    │
+              │   → Send Notification  │
+              └────────────────────────┘</code></pre>
+<hr />
+<h2 id="dependencies">📦 Dependencies</h2>
+<h3 id="from-pubspec.yaml">From <code>pubspec.yaml</code></h3>
+<table>
+<colgroup>
+<col style="width: 39%" />
+<col style="width: 9%" />
+<col style="width: 51%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Package</th>
+<th>Version</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>firebase_core</code></td>
+<td>^4.1.1</td>
+<td>Firebase SDK initialization</td>
+</tr>
+<tr class="even">
+<td><code>firebase_auth</code></td>
+<td>^6.1.0</td>
+<td>Email/Google authentication</td>
+</tr>
+<tr class="odd">
+<td><code>cloud_firestore</code></td>
+<td>^6.0.2</td>
+<td>NoSQL database operations</td>
+</tr>
+<tr class="even">
+<td><code>firebase_messaging</code></td>
+<td>^16.0.2</td>
+<td>Push notification handling</td>
+</tr>
+<tr class="odd">
+<td><code>flutter_local_notifications</code></td>
+<td>^15.1.3</td>
+<td>Local notifications display</td>
+</tr>
+<tr class="even">
+<td><code>shared_preferences</code></td>
+<td>^2.2.2</td>
+<td>Local storage for preferences</td>
+</tr>
+<tr class="odd">
+<td><code>intl</code></td>
+<td>^0.20.2</td>
+<td>Date formatting &amp; internationalization</td>
+</tr>
+<tr class="even">
+<td><code>cupertino_icons</code></td>
+<td>^1.0.8</td>
+<td>iOS-style icons</td>
+</tr>
+</tbody>
+</table>
+<h3 id="dev-dependencies">Dev Dependencies</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Package</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>flutter_test</code></td>
+<td>Widget &amp; unit testing</td>
+</tr>
+<tr class="even">
+<td><code>flutter_lints</code></td>
+<td>Code quality rules</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="defense-tips">💡 Defense Tips</h2>
+<h3 id="technical-questions">Technical Questions</h3>
+<p><strong>Q: Why Flutter?</strong></p>
+<blockquote>
+<p>Flutter enables cross-platform development (Android, iOS, Web) from a
+single codebase, reducing development time by 40-50%. Hot reload
+accelerates development. Rich widget library provides consistent
+Material Design UI.</p>
+</blockquote>
+<p><strong>Q: Why Firebase?</strong></p>
+<blockquote>
+<p>Firebase is serverless (no backend management needed), provides
+real-time sync, has built-in authentication, and scales automatically.
+The free tier is sufficient for academic projects.</p>
+</blockquote>
+<p><strong>Q: Why NoSQL (Firestore) over SQL?</strong></p>
+<blockquote>
+<p>Firestore’s document model naturally fits our hierarchical data
+(users → transactions/budgets/rules). Real-time listeners provide
+instant UI updates. Offline caching ensures app works without
+internet.</p>
+</blockquote>
+<p><strong>Q: How does the income-type personalization
+work?</strong></p>
+<blockquote>
+<p>During signup, users select their income type. The
+<code>incomeType</code> field in <code>UserModel</code> determines which
+dashboard component to render in <code>home_screen.dart</code>. Each
+dashboard has tailored metrics and reset cycles.</p>
+</blockquote>
+<h3 id="innovation-defense">Innovation Defense</h3>
+<p><strong>Q: What makes this different from existing apps?</strong></p>
+<blockquote>
+<ol type="1">
+<li>Income-type personalization (fixed/variable/hybrid dashboards)</li>
+<li>Nigerian context (Naira currency, cash-first design)</li>
+<li>Rule engine for automated allocations</li>
+<li>Runway calculator for gig workers</li>
+</ol>
+</blockquote>
+<p><strong>Q: What is the “Runway” feature?</strong></p>
+<blockquote>
+<p>Runway calculates “days until funds depleted” based on current
+balance and daily spending average. Critical for variable earners who
+need to know how long their funds will last.</p>
+</blockquote>
+<h3 id="code-metrics">Code Metrics</h3>
+<table>
+<colgroup>
+<col style="width: 31%" />
+<col style="width: 68%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Metric</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Total Dart files</td>
+<td>~30</td>
+</tr>
+<tr class="even">
+<td>Firebase Service</td>
+<td>1,722 lines</td>
+</tr>
+<tr class="odd">
+<td>Data Models</td>
+<td>5 classes</td>
+</tr>
+<tr class="even">
+<td>Personalized Dashboards</td>
+<td>3</td>
+</tr>
+<tr class="odd">
+<td>Rule Types Supported</td>
+<td>4 (allocation, savings, alert, income_allocation)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="references">📚 References</h2>
+<ul>
+<li><a href="https://docs.flutter.dev">Flutter Documentation</a></li>
+<li><a href="https://firebase.google.com/docs">Firebase
+Documentation</a></li>
+<li><a href="https://material.io">Material Design Guidelines</a></li>
+<li><a href="https://dart.dev/language">Dart Language Tour</a></li>
+</ul>
+<hr />
+<p><strong>Document Version:</strong> 1.0<br />
+<strong>Last Updated:</strong> January 2026<br />
+<strong>Prepared For:</strong> Project Defense</p>
+<hr />
+<p><em>Good luck with your defense! 🎓</em></p>
+</body>
+</html>
